@@ -24,3 +24,17 @@ jobs:
 
       - name: Build iOS (sem assinatura)
         run: flutter build ios --release --no-codesign
+
+      - name: Empacotar IPA
+        run: |
+          mkdir -p Payload
+          cp -r build/ios/Release-iphoneos/Runner.app Payload/
+          zip -r prosa.ipa Payload/
+          rm -rf Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: prosa-ios-${{ github.sha }}
+          path: prosa.ipa
+          retention-days: 30
