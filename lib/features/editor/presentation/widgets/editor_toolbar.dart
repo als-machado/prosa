@@ -1,0 +1,141 @@
+import 'package:flutter/material.dart';
+import '../../../../core/utils/markdown_formatter.dart';
+
+class EditorToolbar extends StatelessWidget {
+  final bool isDirty;
+  final VoidCallback? onSave;
+  final VoidCallback onCommit;
+  final VoidCallback onPush;
+  final VoidCallback onPull;
+  final VoidCallback onToggleFocus;
+  final TextEditingController? controller;
+
+  const EditorToolbar({
+    super.key,
+    required this.isDirty,
+    this.onSave,
+    required this.onCommit,
+    required this.onPush,
+    required this.onPull,
+    required this.onToggleFocus,
+    this.controller,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          _ToolbarButton(
+            icon: Icons.save_outlined,
+            tooltip: 'Salvar',
+            onPressed: isDirty ? onSave : null,
+            badge: isDirty,
+          ),
+          const _Separator(),
+          _ToolbarButton(
+            icon: Icons.format_bold,
+            tooltip: 'Negrito (**texto**)',
+            onPressed: controller != null ? () => MarkdownFormatter.bold(controller!) : null,
+          ),
+          _ToolbarButton(
+            icon: Icons.format_italic,
+            tooltip: 'Itálico (_texto_)',
+            onPressed: controller != null ? () => MarkdownFormatter.italic(controller!) : null,
+          ),
+          _ToolbarButton(
+            icon: Icons.format_strikethrough,
+            tooltip: 'Tachado (~~texto~~)',
+            onPressed: controller != null ? () => MarkdownFormatter.strikethrough(controller!) : null,
+          ),
+          const _Separator(),
+          _ToolbarButton(
+            icon: Icons.title,
+            tooltip: 'Título H1',
+            onPressed: controller != null ? () => MarkdownFormatter.heading(controller!, 1) : null,
+          ),
+          _ToolbarButton(
+            icon: Icons.format_size,
+            tooltip: 'Subtítulo H2',
+            onPressed: controller != null ? () => MarkdownFormatter.heading(controller!, 2) : null,
+          ),
+          const _Separator(),
+          _ToolbarButton(icon: Icons.commit, tooltip: 'Commit', onPressed: onCommit),
+          _ToolbarButton(icon: Icons.cloud_upload_outlined, tooltip: 'Push', onPressed: onPush),
+          _ToolbarButton(icon: Icons.cloud_download_outlined, tooltip: 'Pull', onPressed: onPull),
+          const Spacer(),
+          _ToolbarButton(
+            icon: Icons.fullscreen,
+            tooltip: 'Modo foco',
+            onPressed: onToggleFocus,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ToolbarButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+  final bool badge;
+
+  const _ToolbarButton({
+    required this.icon,
+    required this.tooltip,
+    this.onPressed,
+    this.badge = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Stack(
+        alignment: Alignment.topRight,
+        children: [
+          IconButton(
+            icon: Icon(icon, size: 18),
+            onPressed: onPressed,
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+          ),
+          if (badge)
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Separator extends StatelessWidget {
+  const _Separator();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 24,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      color: Theme.of(context).dividerColor,
+    );
+  }
+}
