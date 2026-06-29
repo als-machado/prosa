@@ -4,48 +4,128 @@ import 'package:google_fonts/google_fonts.dart';
 class AppTheme {
   AppTheme._();
 
-  static const Color _primaryLight = Color(0xFF2D6A4F);
-  static const Color _primaryDark = Color(0xFF52B788);
-  static const Color _surfaceLight = Color(0xFFFAF8F5);
-  static const Color _surfaceDark = Color(0xFF1A1A2E);
-  static const Color _backgroundLight = Color(0xFFF2EFE9);
-  static const Color _backgroundDark = Color(0xFF0F0F1A);
-  static const Color _sidebarLight = Color(0xFFE8E4DC);
-  static const Color _sidebarDark = Color(0xFF16213E);
+  // Paleta inspirada no app Claude (tons quentes, terracota/cobre)
+  static const Color _primaryLight    = Color(0xFFCC6B3D); // terracota quente
+  static const Color _onPrimaryLight  = Color(0xFFFFFFFF);
+  static const Color _bgLight         = Color(0xFFF7F3EC); // creme quente
+  static const Color _surfaceLight    = Color(0xFFFFFDF9); // branco levemente aquecido
+  static const Color _sidebarLight    = Color(0xFFEEE7DC); // creme mais escuro para sidebar
+  static const Color _onSurfaceLight  = Color(0xFF1C1712); // marrom-escuro para texto
+  static const Color _dividerLight    = Color(0xFFE0D8CC);
+
+  static const Color _primaryDark     = Color(0xFFE8906A); // cobre claro para dark mode
+  static const Color _onPrimaryDark   = Color(0xFF1A0A02);
+  static const Color _bgDark          = Color(0xFF141414); // cinza escuro neutro
+  static const Color _surfaceDark     = Color(0xFF1E1E1E); // superfície cinza escura
+  static const Color _sidebarDark     = Color(0xFF191919); // sidebar levemente mais escura
+  static const Color _onSurfaceDark   = Color(0xFFEDEDED); // texto claro neutro
+  static const Color _dividerDark     = Color(0xFF2C2C2C);
 
   static final light = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
-    colorScheme: ColorScheme.light(
+    colorScheme: const ColorScheme.light(
       primary: _primaryLight,
+      onPrimary: _onPrimaryLight,
+      secondary: Color(0xFFB8896A),
+      onSecondary: _onPrimaryLight,
       surface: _surfaceLight,
+      onSurface: _onSurfaceLight,
+      onSurfaceVariant: Color(0xFF5C4F42),
       surfaceContainerLowest: _sidebarLight,
+      surfaceContainerLow: Color(0xFFF2EBE1),
+      surfaceContainer: Color(0xFFEBE3D8),
+      outline: Color(0xFFB8A898),
+      outlineVariant: _dividerLight,
+      error: Color(0xFFBA1A1A),
+      onError: Color(0xFFFFFFFF),
     ),
-    scaffoldBackgroundColor: _backgroundLight,
+    scaffoldBackgroundColor: _bgLight,
     textTheme: GoogleFonts.interTextTheme(),
     appBarTheme: const AppBarTheme(
       backgroundColor: _surfaceLight,
+      foregroundColor: _onSurfaceLight,
       elevation: 0,
       scrolledUnderElevation: 1,
+      surfaceTintColor: Colors.transparent,
     ),
-    dividerTheme: const DividerThemeData(color: Color(0xFFD5CFC4)),
+    cardTheme: CardThemeData(
+      color: _surfaceLight,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(10)),
+        side: BorderSide(color: _dividerLight),
+      ),
+    ),
+    dividerTheme: const DividerThemeData(color: _dividerLight, space: 1, thickness: 1),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: _surfaceLight,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(8)),
+        borderSide: BorderSide(color: _dividerLight),
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: _primaryLight,
+        foregroundColor: _onPrimaryLight,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
+      ),
+    ),
   );
 
   static final dark = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
-    colorScheme: ColorScheme.dark(
+    colorScheme: const ColorScheme.dark(
       primary: _primaryDark,
+      onPrimary: _onPrimaryDark,
+      secondary: Color(0xFFCCA07A),
+      onSecondary: _onPrimaryDark,
       surface: _surfaceDark,
+      onSurface: _onSurfaceDark,
+      onSurfaceVariant: Color(0xFFAAAAAA),
       surfaceContainerLowest: _sidebarDark,
+      surfaceContainerLow: Color(0xFF212121),
+      surfaceContainer: Color(0xFF252525),
+      outline: Color(0xFF606060),
+      outlineVariant: _dividerDark,
+      error: Color(0xFFFFB4AB),
+      onError: Color(0xFF690005),
     ),
-    scaffoldBackgroundColor: _backgroundDark,
+    scaffoldBackgroundColor: _bgDark,
     textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
     appBarTheme: const AppBarTheme(
       backgroundColor: _surfaceDark,
+      foregroundColor: _onSurfaceDark,
       elevation: 0,
       scrolledUnderElevation: 1,
+      surfaceTintColor: Colors.transparent,
     ),
-    dividerTheme: const DividerThemeData(color: Color(0xFF2A2A4A)),
+    cardTheme: CardThemeData(
+      color: _surfaceDark,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(10)),
+        side: BorderSide(color: _dividerDark),
+      ),
+    ),
+    dividerTheme: const DividerThemeData(color: _dividerDark, space: 1, thickness: 1),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: _surfaceDark,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(8)),
+        borderSide: BorderSide(color: _dividerDark),
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: _primaryDark,
+        foregroundColor: _onPrimaryDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
+      ),
+    ),
   );
 }

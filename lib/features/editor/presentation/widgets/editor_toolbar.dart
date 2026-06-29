@@ -1,5 +1,5 @@
+import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:flutter/material.dart';
-import '../../../../core/utils/markdown_formatter.dart';
 
 class EditorToolbar extends StatelessWidget {
   final bool isDirty;
@@ -8,7 +8,7 @@ class EditorToolbar extends StatelessWidget {
   final VoidCallback onPush;
   final VoidCallback onPull;
   final VoidCallback onToggleFocus;
-  final TextEditingController? controller;
+  final EditorState? editorState;
 
   const EditorToolbar({
     super.key,
@@ -18,8 +18,38 @@ class EditorToolbar extends StatelessWidget {
     required this.onPush,
     required this.onPull,
     required this.onToggleFocus,
-    this.controller,
+    this.editorState,
   });
+
+  void _toggleInline(String attribute) {
+    final state = editorState;
+    if (state == null) return;
+    state.toggleAttribute(attribute);
+  }
+
+  void _applyHeading(int level) {
+    final state = editorState;
+    if (state == null) return;
+    final selection = state.selection;
+    if (selection == null) return;
+
+    final node = state.getNodeAtPath(selection.start.path);
+    if (node == null) return;
+
+    final isAlreadyThisHeading =
+        node.type == HeadingBlockKeys.type && node.attributes[HeadingBlockKeys.level] == level;
+
+    state.formatNode(
+      selection,
+      (node) => node.copyWith(
+        type: isAlreadyThisHeading ? ParagraphBlockKeys.type : HeadingBlockKeys.type,
+        attributes: {
+          HeadingBlockKeys.level: level,
+          blockComponentDelta: (node.delta ?? Delta()).toJson(),
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,36 +64,36 @@ class EditorToolbar extends StatelessWidget {
         children: [
           _ToolbarButton(
             icon: Icons.save_outlined,
-            tooltip: 'Salvar',
+            tooltip: 'Salvar (Ctrl+S)',
             onPressed: isDirty ? onSave : null,
             badge: isDirty,
           ),
           const _Separator(),
           _ToolbarButton(
             icon: Icons.format_bold,
-            tooltip: 'Negrito (**texto**)',
-            onPressed: controller != null ? () => MarkdownFormatter.bold(controller!) : null,
+            tooltip: 'Negrito (Ctrl+B)',
+            onPressed: editorState != null ? () => _toggleInline(AppFlowyRichTextKeys.bold) : null,
           ),
           _ToolbarButton(
             icon: Icons.format_italic,
-            tooltip: 'Itálico (_texto_)',
-            onPressed: controller != null ? () => MarkdownFormatter.italic(controller!) : null,
+            tooltip: 'Itálico (Ctrl+I)',
+            onPressed: editorState != null ? () => _toggleInline(AppFlowyRichTextKeys.italic) : null,
           ),
           _ToolbarButton(
             icon: Icons.format_strikethrough,
-            tooltip: 'Tachado (~~texto~~)',
-            onPressed: controller != null ? () => MarkdownFormatter.strikethrough(controller!) : null,
+            tooltip: 'Tachado',
+            onPressed: editorState != null ? () => _toggleInline(AppFlowyRichTextKeys.strikethrough) : null,
           ),
           const _Separator(),
           _ToolbarButton(
             icon: Icons.title,
             tooltip: 'Título H1',
-            onPressed: controller != null ? () => MarkdownFormatter.heading(controller!, 1) : null,
+            onPressed: editorState != null ? () => _applyHeading(1) : null,
           ),
           _ToolbarButton(
             icon: Icons.format_size,
             tooltip: 'Subtítulo H2',
-            onPressed: controller != null ? () => MarkdownFormatter.heading(controller!, 2) : null,
+            onPressed: editorState != null ? () => _applyHeading(2) : null,
           ),
           const _Separator(),
           _ToolbarButton(icon: Icons.commit, tooltip: 'Commit', onPressed: onCommit),

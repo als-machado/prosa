@@ -24,7 +24,7 @@ dependencies:
   path_provider: ^2.1.5
 
   # File system
-  file_picker: ^8.1.7
+  file_picker: ^10.2.0
 
   # Text editing & markdown
   flutter_markdown: ^0.7.7
@@ -46,6 +46,7 @@ dependencies:
   yaml: ^3.1.2
 
   cupertino_icons: ^1.0.8
+  appflowy_editor: ^6.0.0
 
 dev_dependencies:
   flutter_test:

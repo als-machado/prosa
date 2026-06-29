@@ -38,6 +38,7 @@ class AppSettings {
   final bool darkMode;
   final String editorFont;
   final double editorFontSize;
+  final int editorTabSize;
   final GitProvider? gitProvider;
   final String? gitUsername;
   final String? gitToken;
@@ -47,6 +48,7 @@ class AppSettings {
     this.darkMode = false,
     this.editorFont = 'Lora',
     this.editorFontSize = 16.0,
+    this.editorTabSize = 4,
     this.gitProvider,
     this.gitUsername,
     this.gitToken,
@@ -57,6 +59,7 @@ class AppSettings {
     bool? darkMode,
     String? editorFont,
     double? editorFontSize,
+    int? editorTabSize,
     GitProvider? gitProvider,
     String? gitUsername,
     String? gitToken,
@@ -66,6 +69,7 @@ class AppSettings {
         darkMode: darkMode ?? this.darkMode,
         editorFont: editorFont ?? this.editorFont,
         editorFontSize: editorFontSize ?? this.editorFontSize,
+        editorTabSize: editorTabSize ?? this.editorTabSize,
         gitProvider: gitProvider ?? this.gitProvider,
         gitUsername: gitUsername ?? this.gitUsername,
         gitToken: gitToken ?? this.gitToken,
@@ -76,6 +80,7 @@ class AppSettings {
         'darkMode': darkMode,
         'editorFont': editorFont,
         'editorFontSize': editorFontSize,
+        'editorTabSize': editorTabSize,
         'gitProviderHost': gitProvider?.host,
         'gitProviderName': gitProvider?.name,
         'gitProviderApiBase': gitProvider?.apiBase,
@@ -105,6 +110,7 @@ class AppSettings {
       darkMode: m['darkMode'] as bool? ?? false,
       editorFont: m['editorFont'] as String? ?? 'Georgia',
       editorFontSize: (m['editorFontSize'] as num?)?.toDouble() ?? 16.0,
+      editorTabSize: (m['editorTabSize'] as num?)?.toInt() ?? 4,
       gitProvider: provider,
       gitUsername: m['gitUsername'] as String?,
       gitToken: m['gitToken'] as String?,

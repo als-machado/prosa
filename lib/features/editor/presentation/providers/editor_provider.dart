@@ -12,21 +12,21 @@ final fileContentProvider = FutureProvider<String>((ref) async {
   return file.readAsString();
 });
 
-class EditorState {
+class EditorDocumentState {
   final String content;
   final bool isDirty;
 
-  const EditorState({this.content = '', this.isDirty = false});
+  const EditorDocumentState({this.content = '', this.isDirty = false});
 
-  EditorState copyWith({String? content, bool? isDirty}) => EditorState(
+  EditorDocumentState copyWith({String? content, bool? isDirty}) => EditorDocumentState(
         content: content ?? this.content,
         isDirty: isDirty ?? this.isDirty,
       );
 }
 
-class EditorNotifier extends Notifier<EditorState> {
+class EditorNotifier extends Notifier<EditorDocumentState> {
   @override
-  EditorState build() => const EditorState();
+  EditorDocumentState build() => const EditorDocumentState();
 
   void updateContent(String content) {
     state = state.copyWith(content: content, isDirty: true);
@@ -38,10 +38,10 @@ class EditorNotifier extends Notifier<EditorState> {
   }
 
   void loadContent(String content) {
-    state = EditorState(content: content, isDirty: false);
+    state = EditorDocumentState(content: content, isDirty: false);
   }
 }
 
-final editorNotifierProvider = NotifierProvider<EditorNotifier, EditorState>(
+final editorNotifierProvider = NotifierProvider<EditorNotifier, EditorDocumentState>(
   EditorNotifier.new,
 );

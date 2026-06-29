@@ -52,6 +52,13 @@ class _SettingsBody extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _pickFontSize(context, ref),
           ),
+          ListTile(
+            leading: const Icon(Icons.keyboard_tab_outlined),
+            title: const Text('Tamanho da tabulação'),
+            subtitle: Text('${settings.editorTabSize} caracteres'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _pickTabSize(context, ref),
+          ),
         ]),
         const SizedBox(height: 24),
         _Section(title: 'Git', children: [
@@ -119,6 +126,22 @@ class _SettingsBody extends ConsumerWidget {
     );
     if (picked == null) return;
     await ref.read(settingsProvider.notifier).save(settings.copyWith(editorFontSize: picked));
+  }
+
+  Future<void> _pickTabSize(BuildContext context, WidgetRef ref) async {
+    final sizes = [2, 3, 4, 6, 8];
+    final picked = await showDialog<int>(
+      context: context,
+      builder: (_) => SimpleDialog(
+        title: const Text('Tamanho da tabulação'),
+        children: sizes.map((s) => SimpleDialogOption(
+          onPressed: () => Navigator.pop(context, s),
+          child: Text('$s caracteres'),
+        )).toList(),
+      ),
+    );
+    if (picked == null) return;
+    await ref.read(settingsProvider.notifier).save(settings.copyWith(editorTabSize: picked));
   }
 
   Future<void> _pickGitProvider(BuildContext context, WidgetRef ref) async {

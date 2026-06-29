@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -143,12 +144,20 @@ class _RemoteProjects extends ConsumerWidget {
   }
 }
 
-class _RemoteRepoCard extends ConsumerWidget {
+class _RemoteRepoCard extends ConsumerStatefulWidget {
   final RemoteRepo repo;
   const _RemoteRepoCard({required this.repo});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_RemoteRepoCard> createState() => _RemoteRepoCardState();
+}
+
+class _RemoteRepoCardState extends ConsumerState<_RemoteRepoCard> {
+  bool _isCloning = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = widget.repo;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -157,23 +166,39 @@ class _RemoteRepoCard extends ConsumerWidget {
         subtitle: repo.description.isNotEmpty
             ? Text(repo.description, style: Theme.of(context).textTheme.bodySmall)
             : null,
-        trailing: const Icon(Icons.download_outlined, size: 18),
-        onTap: () => _clone(context, ref),
+        trailing: _isCloning
+            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.download_outlined, size: 18),
+        onTap: _isCloning ? null : _clone,
       ),
     );
   }
 
-  Future<void> _clone(BuildContext context, WidgetRef ref) async {
-    final service = ref.read(projectServiceProvider);
-    final git = ref.read(gitServiceProvider);
-    final base = await service.defaultProjectsDir;
-    final dest = '${base.path}/${repo.name}';
-    await git.clone(repo.sshUrl, dest);
-    final project = await service.loadProject(dest);
-    if (project != null) {
+  Future<void> _clone() async {
+    setState(() => _isCloning = true);
+    final repo = widget.repo;
+    try {
+      final service = ref.read(projectServiceProvider);
+      final git = ref.read(gitServiceProvider);
+      final base = await service.defaultProjectsDir;
+      final dest = '${base.path}/${repo.name}';
+      if (!Directory(dest).existsSync()) {
+        final sshKeyPath = await ref.read(sshKeyPathProvider.future);
+        await git.clone(repo.sshUrl, dest, sshKeyPath: sshKeyPath);
+      }
+      final project = await service.loadProject(dest);
+      if (project == null) {
+        throw Exception('Projeto clonado, mas não foi possível carregá-lo (arquivo .prosa ausente ou inválido).');
+      }
       ref.read(activeProjectProvider.notifier).state = project;
       ref.invalidate(localProjectsProvider);
-      if (context.mounted) context.go('/editor');
+      if (mounted) context.go('/editor');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao clonar repositório: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isCloning = false);
     }
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,6 +13,25 @@ import '../../../../features/projects/presentation/providers/projects_provider.d
 import '../../../../features/settings/presentation/providers/settings_provider.dart';
 import '../../../../features/settings/domain/models/app_settings.dart';
 
+CommandShortcutEvent _buildTabInsertCommand(int tabSize) {
+  final indent = ' ' * tabSize;
+  return CommandShortcutEvent(
+    key: 'insert-tab',
+    getDescription: () => 'Inserir indentação',
+    command: 'tab',
+    handler: (editorState) {
+      final selection = editorState.selection;
+      if (selection == null) return KeyEventResult.ignored;
+      final node = editorState.getNodeAtPath(selection.start.path);
+      if (node == null || node.delta == null) return KeyEventResult.ignored;
+      final transaction = editorState.transaction
+        ..insertText(node, selection.start.offset, indent);
+      editorState.apply(transaction);
+      return KeyEventResult.handled;
+    },
+  );
+}
+
 class EditorScreen extends ConsumerStatefulWidget {
   const EditorScreen({super.key});
 
@@ -19,18 +40,28 @@ class EditorScreen extends ConsumerStatefulWidget {
 }
 
 class _EditorScreenState extends ConsumerState<EditorScreen> {
-  late final TextEditingController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = TextEditingController();
-  }
+  EditorState? _editorState;
+  StreamSubscription? _transactionSub;
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _transactionSub?.cancel();
+    _editorState?.dispose();
     super.dispose();
+  }
+
+  void _loadIntoEditor(String content) {
+    _transactionSub?.cancel();
+    _editorState?.dispose();
+
+    final newState = EditorState(document: markdownToDocument(content));
+    _transactionSub = newState.transactionStream.listen((_) {
+      final markdown = documentToMarkdown(newState.document);
+      ref.read(editorNotifierProvider.notifier).updateContent(markdown);
+    });
+
+    setState(() => _editorState = newState);
+    ref.read(editorNotifierProvider.notifier).loadContent(content);
   }
 
   @override
@@ -38,14 +69,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     final focusMode = ref.watch(focusModeProvider);
     final settings = ref.watch(settingsProvider).valueOrNull ?? const AppSettings();
     final activeFile = ref.watch(activeFileProvider);
-    final editorState = ref.watch(editorNotifierProvider);
+    final editorDocState = ref.watch(editorNotifierProvider);
 
     ref.listen(fileContentProvider, (_, next) {
-      next.whenData((content) {
-        ref.read(editorNotifierProvider.notifier).loadContent(content);
-        _ctrl.text = content;
-        _ctrl.selection = TextSelection.collapsed(offset: content.length);
-      });
+      next.whenData((content) => _loadIntoEditor(content));
     });
 
     return Scaffold(
@@ -57,22 +84,22 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
               children: [
                 if (!focusMode)
                   EditorToolbar(
-                    isDirty: editorState.isDirty,
+                    isDirty: editorDocState.isDirty,
                     onSave: activeFile != null ? () => _save(activeFile) : null,
                     onCommit: () => _showCommitDialog(),
                     onPush: () => _push(),
                     onPull: () => _pull(),
                     onToggleFocus: () => ref.read(focusModeProvider.notifier).state = true,
-                    controller: _ctrl,
+                    editorState: _editorState,
                   ),
                 Expanded(
                   child: activeFile == null
                       ? const Center(child: Text('Selecione um arquivo no menu lateral'))
-                      : _buildEditor(settings),
+                      : _buildEditor(settings, activeFile),
                 ),
                 if (focusMode)
                   _FocusBar(
-                    isDirty: editorState.isDirty,
+                    isDirty: editorDocState.isDirty,
                     onSave: activeFile != null ? () => _save(activeFile) : null,
                     onExit: () => ref.read(focusModeProvider.notifier).state = false,
                   ),
@@ -85,33 +112,66 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   }
 
   TextStyle _editorTextStyle(AppSettings settings) {
+    final color = Theme.of(context).colorScheme.onSurface;
     try {
-      return GoogleFonts.getFont(
-        settings.editorFont,
-        fontSize: settings.editorFontSize,
-        height: 1.8,
-      );
+      return GoogleFonts.getFont(settings.editorFont, fontSize: settings.editorFontSize, height: 1.8, color: color);
     } catch (_) {
-      return GoogleFonts.lora(fontSize: settings.editorFontSize, height: 1.8);
+      return GoogleFonts.lora(fontSize: settings.editorFontSize, height: 1.8, color: color);
     }
   }
 
-  Widget _buildEditor(AppSettings settings) {
+  Widget _buildEditor(AppSettings settings, String activeFile) {
+    final editorState = _editorState;
+    if (editorState == null) return const SizedBox.shrink();
+
+    final baseStyle = _editorTextStyle(settings);
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final prosaBlockConfig = BlockComponentConfiguration(
+      padding: (_) => EdgeInsets.zero,
+      placeholderText: (_) => '',
+    );
+
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-            child: TextField(
-              controller: _ctrl,
-              maxLines: null,
-              expands: true,
-              decoration: const InputDecoration(border: InputBorder.none, hintText: 'Comece a escrever...'),
-              style: _editorTextStyle(settings),
-              onChanged: (v) => ref.read(editorNotifierProvider.notifier).updateContent(v),
-            ),
+      child: AppFlowyEditor(
+        editorState: editorState,
+        header: const SizedBox(height: 32),
+        footer: const SizedBox(height: 32),
+        blockComponentBuilders: {
+          ...standardBlockComponentBuilderMap,
+          ParagraphBlockKeys.type: ParagraphBlockComponentBuilder(
+            configuration: prosaBlockConfig,
+          ),
+          HeadingBlockKeys.type: HeadingBlockComponentBuilder(
+            configuration: prosaBlockConfig,
+          ),
+        },
+        commandShortcutEvents: [
+          ...standardCommandShortcutEvents.where((e) => e.key != 'indent'),
+          _buildTabInsertCommand(settings.editorTabSize),
+          CommandShortcutEvent(
+            key: 'save-file',
+            getDescription: () => 'Salvar arquivo',
+            command: 'ctrl+s',
+            handler: (_) {
+              _save(activeFile);
+              return KeyEventResult.handled;
+            },
+          ),
+        ],
+        editorStyle: EditorStyle.desktop(
+          padding: const EdgeInsets.symmetric(horizontal: 80),
+          maxWidth: 720,
+          cursorColor: colorScheme.primary,
+          selectionColor: colorScheme.primary.withValues(alpha: 0.2),
+          textStyleConfiguration: TextStyleConfiguration(
+            text: baseStyle,
+            bold: baseStyle.copyWith(fontWeight: FontWeight.bold),
+            italic: baseStyle.copyWith(fontStyle: FontStyle.italic),
+            strikethrough: baseStyle.copyWith(decoration: TextDecoration.lineThrough),
+            underline: baseStyle.copyWith(decoration: TextDecoration.underline),
+            code: baseStyle.copyWith(fontFamily: 'monospace', fontSize: (settings.editorFontSize - 2).clamp(10, 72)),
           ),
         ),
       ),
