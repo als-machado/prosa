@@ -67,14 +67,14 @@ class HomeScreen extends ConsumerWidget {
                 OutlinedButton.icon(
                   icon: const Icon(Icons.cloud_outlined),
                   label: const Text('Configurar integração Git'),
-                  onPressed: () => context.go('/settings'),
+                  onPressed: () => context.push('/settings'),
                 ),
               const SizedBox(height: 24),
               Center(
                 child: FilledButton.icon(
                   icon: const Icon(Icons.add),
                   label: const Text('Novo projeto'),
-                  onPressed: () => context.go('/new-project'),
+                  onPressed: () => context.push('/new-project'),
                 ),
               ),
             ],

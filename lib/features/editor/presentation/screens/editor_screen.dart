@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../providers/editor_provider.dart';
 import '../widgets/editor_toolbar.dart';
 import '../widgets/commit_dialog.dart';
+import '../widgets/publish_dialog.dart';
 import '../../../../shared/widgets/sidebar/app_sidebar.dart';
 import '../../../../features/git/presentation/providers/git_provider.dart';
 import '../../../../features/projects/presentation/providers/projects_provider.dart';
@@ -83,6 +84,18 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     );
   }
 
+  TextStyle _editorTextStyle(AppSettings settings) {
+    try {
+      return GoogleFonts.getFont(
+        settings.editorFont,
+        fontSize: settings.editorFontSize,
+        height: 1.8,
+      );
+    } catch (_) {
+      return GoogleFonts.lora(fontSize: settings.editorFontSize, height: 1.8);
+    }
+  }
+
   Widget _buildEditor(AppSettings settings) {
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
@@ -96,11 +109,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
               maxLines: null,
               expands: true,
               decoration: const InputDecoration(border: InputBorder.none, hintText: 'Comece a escrever...'),
-              style: GoogleFonts.getFont(
-                settings.editorFont,
-                fontSize: settings.editorFontSize,
-                height: 1.8,
-              ),
+              style: _editorTextStyle(settings),
               onChanged: (v) => ref.read(editorNotifierProvider.notifier).updateContent(v),
             ),
           ),
@@ -134,17 +143,43 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   Future<void> _push() async {
     final project = ref.read(activeProjectProvider);
     if (project == null) return;
-    final git = ref.read(gitServiceProvider);
-    await git.push(project.localPath);
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Push realizado')));
+    final hasRemote = await ref.read(hasRemoteProvider.future);
+    if (!hasRemote) {
+      if (mounted) _showPublishDialog();
+      return;
+    }
+    final sshKeyPath = await ref.read(sshKeyPathProvider.future);
+    final branch = await ref.read(currentBranchProvider.future);
+    try {
+      final git = ref.read(gitServiceProvider);
+      await git.push(project.localPath, sshKeyPath: sshKeyPath, branch: branch, setUpstream: true);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Push realizado')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro no push: $e')));
+    }
   }
 
   Future<void> _pull() async {
     final project = ref.read(activeProjectProvider);
     if (project == null) return;
+    final sshKeyPath = await ref.read(sshKeyPathProvider.future);
     final git = ref.read(gitServiceProvider);
-    await git.pull(project.localPath);
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pull realizado')));
+    try {
+      await git.pull(project.localPath, sshKeyPath: sshKeyPath);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pull realizado')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro no pull: $e')));
+    }
+  }
+
+  Future<void> _showPublishDialog() async {
+    final project = ref.read(activeProjectProvider);
+    if (project == null) return;
+    await showDialog(
+      context: context,
+      builder: (_) => PublishDialog(project: project),
+    );
+    ref.invalidate(hasRemoteProvider);
   }
 }
 

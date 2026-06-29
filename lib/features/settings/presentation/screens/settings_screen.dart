@@ -59,7 +59,7 @@ class _SettingsBody extends ConsumerWidget {
             leading: const Icon(Icons.vpn_key_outlined),
             title: const Text('Configurar chave SSH'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.go('/settings/ssh'),
+            onTap: () => context.push('/settings/ssh'),
           ),
           ListTile(
             leading: const Icon(Icons.cloud_outlined),
@@ -75,13 +75,22 @@ class _SettingsBody extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _editUsername(context, ref),
           ),
+          ListTile(
+            leading: const Icon(Icons.token_outlined),
+            title: const Text('Token de acesso'),
+            subtitle: Text(
+              settings.gitToken != null ? '••••••••${settings.gitToken!.length > 4 ? settings.gitToken!.substring(settings.gitToken!.length - 4) : ""}' : 'Não configurado',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _editToken(context, ref),
+          ),
         ]),
       ],
     );
   }
 
   Future<void> _pickFont(BuildContext context, WidgetRef ref) async {
-    final fonts = ['Georgia', 'Merriweather', 'Lora', 'Crimson Text', 'Source Serif 4', 'Roboto Mono'];
+    final fonts = ['Lora', 'Merriweather', 'Crimson Text', 'EB Garamond', 'Playfair Display', 'Source Serif 4', 'Roboto Mono'];
     final picked = await showDialog<String>(
       context: context,
       builder: (_) => SimpleDialog(
@@ -135,22 +144,77 @@ class _SettingsBody extends ConsumerWidget {
     }
   }
 
-  Future<void> _editUsername(BuildContext context, WidgetRef ref) async {
-    final ctrl = TextEditingController(text: settings.gitUsername);
+  Future<void> _editToken(BuildContext context, WidgetRef ref) async {
     final result = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Usuário Git'),
-        content: TextField(controller: ctrl, decoration: const InputDecoration(labelText: 'Nome de usuário', border: OutlineInputBorder())),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(context, ctrl.text.trim()), child: const Text('Salvar')),
-        ],
+      builder: (_) => _TextInputDialog(
+        title: 'Token de acesso Git',
+        label: 'Personal Access Token',
+        initialValue: settings.gitToken,
       ),
     );
-    ctrl.dispose();
+    if (result == null) return;
+    await ref.read(settingsProvider.notifier).save(settings.copyWith(gitToken: result));
+  }
+
+  Future<void> _editUsername(BuildContext context, WidgetRef ref) async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => _TextInputDialog(
+        title: 'Usuário Git',
+        label: 'Nome de usuário',
+        initialValue: settings.gitUsername,
+      ),
+    );
     if (result == null) return;
     await ref.read(settingsProvider.notifier).save(settings.copyWith(gitUsername: result));
+  }
+}
+
+class _TextInputDialog extends StatefulWidget {
+  final String title;
+  final String label;
+  final String? initialValue;
+
+  const _TextInputDialog({required this.title, required this.label, this.initialValue});
+
+  @override
+  State<_TextInputDialog> createState() => _TextInputDialogState();
+}
+
+class _TextInputDialogState extends State<_TextInputDialog> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SizedBox(
+        width: 360,
+        child: TextField(
+          controller: _ctrl,
+          decoration: InputDecoration(labelText: widget.label, border: const OutlineInputBorder()),
+          autofocus: true,
+          onSubmitted: (v) => Navigator.pop(context, v.trim()),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+        FilledButton(onPressed: () => Navigator.pop(context, _ctrl.text.trim()), child: const Text('Salvar')),
+      ],
+    );
   }
 }
 

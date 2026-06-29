@@ -45,7 +45,7 @@ class AppSettings {
 
   const AppSettings({
     this.darkMode = false,
-    this.editorFont = 'Georgia',
+    this.editorFont = 'Lora',
     this.editorFontSize = 16.0,
     this.gitProvider,
     this.gitUsername,

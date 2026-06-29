@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../../../features/settings/domain/models/app_settings.dart';
+import '../../settings/domain/models/app_settings.dart';
 
 class RemoteRepo {
   final String name;
@@ -93,6 +93,38 @@ class GitApiService {
       }
     }
     return prosaRepos;
+  }
+
+  Future<RemoteRepo?> createGithubRepo(
+    String token,
+    String name, {
+    String description = '',
+    bool private = true,
+  }) async {
+    final response = await http.post(
+      Uri.parse('https://api.github.com/user/repos'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'name': name,
+        'description': description,
+        'private': private,
+        'auto_init': false,
+      }),
+    );
+    if (response.statusCode != 201) {
+      throw Exception('Erro ao criar repositório: ${response.body}');
+    }
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return RemoteRepo(
+      name: data['name'] as String,
+      cloneUrl: data['clone_url'] as String,
+      sshUrl: data['ssh_url'] as String,
+      description: data['description'] as String? ?? '',
+    );
   }
 
   Future<bool> _gitlabHasProsaFile(String token, int projectId) async {

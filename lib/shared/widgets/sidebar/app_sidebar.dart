@@ -344,12 +344,12 @@ class _SidebarFooter extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.commit, size: 18),
             tooltip: 'Commits',
-            onPressed: () => context.go('/commits'),
+            onPressed: () => context.push('/commits'),
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, size: 18),
             tooltip: 'Configurações',
-            onPressed: () => context.go('/settings'),
+            onPressed: () => context.push('/settings'),
           ),
         ],
       ),

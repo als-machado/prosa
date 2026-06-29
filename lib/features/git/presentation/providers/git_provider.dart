@@ -36,3 +36,16 @@ final publicKeyProvider = FutureProvider<String?>((ref) async {
   final ssh = ref.read(sshServiceProvider);
   return ssh.readPublicKey();
 });
+
+final sshKeyPathProvider = FutureProvider<String?>((ref) async {
+  final ssh = ref.read(sshServiceProvider);
+  if (!await ssh.hasKeyPair) return null;
+  return ssh.privateKeyPath;
+});
+
+final hasRemoteProvider = FutureProvider<bool>((ref) async {
+  final project = ref.watch(activeProjectProvider);
+  if (project == null) return false;
+  final git = ref.read(gitServiceProvider);
+  return git.hasRemote(project.localPath);
+});

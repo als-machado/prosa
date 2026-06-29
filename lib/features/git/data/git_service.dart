@@ -1,9 +1,15 @@
 import 'dart:io';
 
 class GitService {
-  Future<ProcessResult> _run(List<String> args, {String? workingDir}) async {
-    final result = await Process.run('git', args, workingDirectory: workingDir);
-    return result;
+  Future<ProcessResult> _run(
+    List<String> args, {
+    String? workingDir,
+    String? sshKeyPath,
+  }) async {
+    final env = sshKeyPath != null
+        ? {'GIT_SSH_COMMAND': 'ssh -i $sshKeyPath -o StrictHostKeyChecking=no -o BatchMode=yes'}
+        : null;
+    return Process.run('git', args, workingDirectory: workingDir, environment: env);
   }
 
   Future<void> init(String dir) async {
@@ -23,14 +29,24 @@ class GitService {
     await _run(['commit', '-m', message], workingDir: repoPath);
   }
 
-  Future<void> push(String repoPath, {String remote = 'origin', String? branch}) async {
-    final args = ['push', remote];
+  Future<String> push(String repoPath, {
+    String remote = 'origin',
+    String? branch,
+    String? sshKeyPath,
+    bool setUpstream = false,
+  }) async {
+    final args = ['push'];
+    if (setUpstream) args.add('--set-upstream');
+    args.add(remote);
     if (branch != null) args.add(branch);
-    await _run(args, workingDir: repoPath);
+    final r = await _run(args, workingDir: repoPath, sshKeyPath: sshKeyPath);
+    if (r.exitCode != 0) throw Exception(r.stderr as String);
+    return r.stdout as String;
   }
 
-  Future<void> pull(String repoPath, {String remote = 'origin'}) async {
-    await _run(['pull', remote], workingDir: repoPath);
+  Future<void> pull(String repoPath, {String remote = 'origin', String? sshKeyPath}) async {
+    final r = await _run(['pull', remote], workingDir: repoPath, sshKeyPath: sshKeyPath);
+    if (r.exitCode != 0) throw Exception(r.stderr as String);
   }
 
   Future<List<String>> branches(String repoPath) async {
@@ -56,9 +72,9 @@ class GitService {
   }
 
   Future<List<CommitEntry>> log(String repoPath) async {
-    final sep = '|PROSA|';
+    const sep = '|PROSA|';
     final r = await _run(
-      ['log', '--oneline', '--format=%H$sep%s$sep%an$sep%ai'],
+      ['log', '--format=%H$sep%s$sep%an$sep%ai'],
       workingDir: repoPath,
     );
     return (r.stdout as String)
@@ -80,15 +96,17 @@ class GitService {
     await _run(['remote', 'add', name, url], workingDir: repoPath);
   }
 
-  Future<List<String>> remoteRepos(String sshHost, String sshUser) async {
-    return [];
+  Future<bool> hasRemote(String repoPath) async {
+    final r = await _run(['remote'], workingDir: repoPath);
+    return (r.stdout as String).trim().isNotEmpty;
   }
 
   Future<void> clone(String url, String destination, {String? sshKeyPath}) async {
     final env = sshKeyPath != null
-        ? {'GIT_SSH_COMMAND': 'ssh -i $sshKeyPath -o StrictHostKeyChecking=no'}
+        ? {'GIT_SSH_COMMAND': 'ssh -i $sshKeyPath -o StrictHostKeyChecking=no -o BatchMode=yes'}
         : null;
-    await Process.run('git', ['clone', url, destination], environment: env);
+    final r = await Process.run('git', ['clone', url, destination], environment: env);
+    if (r.exitCode != 0) throw Exception(r.stderr as String);
   }
 }
 
