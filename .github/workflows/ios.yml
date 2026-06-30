@@ -142,7 +142,7 @@ jobs:
           zip -r prosa.ipa Payload/
           rm -rf Payload
 
-      - name: Validar IPA
+      - name: Validar IPA e inspecionar dependências
         run: |
           echo "=== Frameworks e executável no IPA ==="
           unzip -l prosa.ipa | grep -E "(\.framework|\.dylib|/Runner$)" | head -60
@@ -153,6 +153,22 @@ jobs:
             exit 1
           fi
           echo "Estrutura OK (sem bundle aninhado)"
+
+          echo ""
+          echo "=== Dependências de cada framework (otool -L) ==="
+          APP=/tmp/runner_app_staging
+          for fw in "$APP/Frameworks/"*.framework; do
+            name=$(basename "$fw")
+            bin="${fw%%.framework}/${name%.framework}"
+            if [ -f "$bin" ]; then
+              echo "--- $name ---"
+              otool -L "$bin" | grep -v "^$bin:" | head -20
+            fi
+          done
+
+          echo ""
+          echo "=== Dependências do executável Runner ==="
+          otool -L "$APP/Runner" | grep -v "^$APP/Runner:" | head -30
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
