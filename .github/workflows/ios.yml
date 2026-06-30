@@ -25,8 +25,18 @@ jobs:
       - name: Desativar Swift Package Manager
         run: flutter config --no-enable-swift-package-manager
 
+      - name: Versão do Xcode e instalações disponíveis
+        run: |
+          xcodebuild -version
+          ls /Applications/ | grep -i xcode || echo "nenhuma instalação encontrada"
+
       - name: Build iOS (sem assinatura)
-        run: flutter build ios --release --no-codesign
+        run: flutter build ios --release --no-codesign --verbose 2>&1 | tee /tmp/build.log; exit ${PIPESTATUS[0]}
+
+      - name: Mostrar erros do build
+        if: failure()
+        run: |
+          grep -E "error:|CODE_SIGN|signing|DEVELOPMENT_TEAM|provision|Xcode_|xcframework" /tmp/build.log | grep -v "^note:" | head -150 || tail -200 /tmp/build.log
 
       - name: Empacotar IPA
         run: |
