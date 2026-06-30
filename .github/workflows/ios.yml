@@ -35,30 +35,20 @@ jobs:
             -scheme Runner \
             -configuration Release \
             -sdk iphoneos \
-            -destination generic/platform=iOS \
+            -archivePath build/Runner.xcarchive \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGN_ENTITLEMENTS="" \
             DEVELOPMENT_TEAM="" \
-            build \
+            archive \
             2>&1 | tee /tmp/build.log
 
       - name: Verificar Runner.app
         run: |
-          BUILD_DIR=$(xcodebuild \
-            -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -showBuildSettings 2>/dev/null | grep ' BUILT_PRODUCTS_DIR' | awk '{print $3}')
-
-          echo "=== BUILT_PRODUCTS_DIR: $BUILD_DIR ==="
-          ls -la "$BUILD_DIR/" 2>/dev/null || true
-
-          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -path "*/Release-iphoneos/*" 2>/dev/null | head -1)
+          APP_PATH="build/Runner.xcarchive/Products/Applications/Runner.app"
           echo "=== Runner.app encontrado em: $APP_PATH ==="
 
-          if [ -z "$APP_PATH" ]; then
+          if [ ! -d "$APP_PATH" ]; then
             echo "Runner.app não encontrado — build falhou."
             tail -80 /tmp/build.log
             exit 1
