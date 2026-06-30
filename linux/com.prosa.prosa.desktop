@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Prosa
+GenericName=Editor de Texto
+Comment=Editor de texto para escritores, com foco na criação de livros.
+Exec=prosa
+Icon=com.prosa.prosa
+Categories=Office;TextEditor;
+StartupNotify=true
+StartupWMClass=prosa
