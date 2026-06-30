@@ -22,6 +22,31 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Patch appflowy_editor (onFocusReceived)
+        run: |
+          python3 - <<'EOF'
+import os
+
+path = os.path.expanduser(
+    '~/.pub-cache/hosted/pub.dev/appflowy_editor-6.2.0'
+    '/lib/src/editor/editor_component/service/ime/delta_input_service.dart'
+)
+with open(path, 'r') as f:
+    content = f.read()
+
+if 'onFocusReceived' not in content:
+    content = content.replace(
+        '  @override\n  TextEditingValue? currentTextEditingValue;',
+        '  @override\n  bool onFocusReceived() => false;\n\n'
+        '  @override\n  TextEditingValue? currentTextEditingValue;'
+    )
+    with open(path, 'w') as f:
+        f.write(content)
+    print('Patch aplicado.')
+else:
+    print('Já estava corrigido.')
+EOF
+
       - name: Versão do Xcode
         run: xcodebuild -version
 
