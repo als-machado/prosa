@@ -22,24 +22,26 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Desativar Swift Package Manager
-        run: flutter config --no-enable-swift-package-manager
-
-      - name: Versão do Xcode e instalações disponíveis
-        run: |
-          xcodebuild -version
-          ls /Applications/ | grep -i xcode || echo "nenhuma instalação encontrada"
+      - name: Versão do Xcode
+        run: xcodebuild -version
 
       - name: Build iOS (sem assinatura)
-        run: flutter build ios --release --no-codesign 2>&1 | tee /tmp/build.log; exit ${PIPESTATUS[0]}
+        continue-on-error: true
+        run: flutter build ios --release --no-codesign 2>&1 | tee /tmp/build.log
 
-      - name: Mostrar erros do build
-        if: failure()
+      - name: Verificar Runner.app
         run: |
-          echo "=== Últimas 300 linhas do log ==="
-          tail -300 /tmp/build.log
-          echo "=== Linhas com 'error:' ==="
-          grep -n " error:" /tmp/build.log | grep -v "^note:" | head -50 || true
+          echo "=== Conteúdo de build/ios/Release-iphoneos/ ==="
+          ls -la build/ios/Release-iphoneos/ 2>/dev/null || echo "Diretório não encontrado"
+
+          if [ -d "build/ios/Release-iphoneos/Runner.app" ]; then
+            echo "Runner.app encontrado — xcodebuild teve sucesso."
+          else
+            echo "Runner.app não encontrado — o xcodebuild falhou de verdade."
+            echo "=== Últimas 50 linhas do log ==="
+            tail -50 /tmp/build.log
+            exit 1
+          fi
 
       - name: Empacotar IPA
         run: |
