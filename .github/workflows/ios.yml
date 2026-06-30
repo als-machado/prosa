@@ -28,20 +28,46 @@ jobs:
       - name: Versão do Xcode
         run: xcodebuild -version
 
-      - name: Build iOS (sem assinatura)
+      # Fase 1: flutter build ios configura pods e compila Dart corretamente.
+      # CODE_SIGNING_ALLOWED=NO pula o embed de frameworks, mas não nos importa
+      # aqui — só precisamos que pods e Dart fiquem prontos para a fase 2.
+      - name: Fase 1 – preparar pods e compilar Dart
+        run: |
+          flutter build ios --release --no-codesign 2>&1 | tee /tmp/flutter_build.log || true
+
+      # Fase 2: xcodebuild archive sem CODE_SIGNING_ALLOWED=NO.
+      # Isso preserva a fase "Embed Frameworks" e produz bundle completo.
+      - name: Fase 2 – archive com frameworks embedados
         run: |
           set -o pipefail
-          flutter build ios --release --no-codesign 2>&1 | tee /tmp/build.log
+          xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/Runner.xcarchive \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            DEVELOPMENT_TEAM="" \
+            SKIP_INSTALL=NO \
+            archive \
+            2>&1 | tee /tmp/xcode_build.log
 
       - name: Verificar Runner.app
         run: |
-          APP_PATH="build/ios/iphoneos/Runner.app"
-          echo "=== Runner.app em: $APP_PATH ==="
-          ls -la "$APP_PATH/" 2>/dev/null || true
-
+          APP_PATH="build/Runner.xcarchive/Products/Applications/Runner.app"
           if [ ! -d "$APP_PATH" ]; then
+            APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData \
+              -path "*/InstallationBuildProductsLocation/Applications/Runner.app" \
+              -type d 2>/dev/null | head -1)
+          fi
+
+          echo "=== Runner.app: $APP_PATH ==="
+
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
             echo "Runner.app não encontrado — build falhou."
-            tail -80 /tmp/build.log
+            tail -80 /tmp/xcode_build.log
             exit 1
           fi
 
@@ -52,12 +78,21 @@ jobs:
           fi
 
           echo "=== Frameworks ==="
-          ls "$APP_PATH/Frameworks/" 2>/dev/null || echo "(pasta Frameworks ausente)"
+          ls "$APP_PATH/Frameworks/" 2>/dev/null || echo "(Frameworks ausente — app vai crashar no dispositivo)"
+
+          if [ ! -d "$APP_PATH/Frameworks" ] || [ -z "$(ls -A "$APP_PATH/Frameworks" 2>/dev/null)" ]; then
+            echo "Frameworks vazio — build incompleto."
+            exit 1
+          fi
+
+          echo "Bundle completo. Copiando…"
+          mkdir -p build/ios/Release-iphoneos
+          cp -r "$APP_PATH" build/ios/Release-iphoneos/Runner.app
 
       - name: Empacotar IPA
         run: |
           mkdir -p Payload
-          cp -r build/ios/iphoneos/Runner.app Payload/
+          cp -r build/ios/Release-iphoneos/Runner.app Payload/
           zip -r prosa.ipa Payload/
           rm -rf Payload
 
