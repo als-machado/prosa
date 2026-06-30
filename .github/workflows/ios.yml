@@ -22,9 +22,10 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Remover equipe de desenvolvimento do projeto
+      - name: Desabilitar assinatura de código
         run: |
           sed -i '' 's/DEVELOPMENT_TEAM = [A-Z0-9]*;/DEVELOPMENT_TEAM = "";/g' ios/Runner.xcodeproj/project.pbxproj
+          printf '\nCODE_SIGNING_ALLOWED=NO\nCODE_SIGNING_REQUIRED=NO\nCODE_SIGN_IDENTITY=\nDEVELOPMENT_TEAM=\n' >> ios/Flutter/Release.xcconfig
 
       - name: Build iOS (sem assinatura)
         run: flutter build ios --release --no-codesign
