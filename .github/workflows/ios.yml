@@ -86,6 +86,7 @@ jobs:
           fi
 
           echo "Bundle completo. Copiando…"
+          rm -rf build/ios/Release-iphoneos/Runner.app
           mkdir -p build/ios/Release-iphoneos
           cp -r "$APP_PATH" build/ios/Release-iphoneos/Runner.app
 
@@ -96,10 +97,17 @@ jobs:
           zip -r prosa.ipa Payload/
           rm -rf Payload
 
-      - name: Listar conteúdo do IPA (diagnóstico)
+      - name: Validar e listar conteúdo do IPA
         run: |
           echo "=== Frameworks e executável no IPA ==="
           unzip -l prosa.ipa | grep -E "(\.framework|\.dylib|/Runner$)" | head -60
+
+          if unzip -l prosa.ipa | grep -q "Runner\.app/Runner\.app"; then
+            echo ""
+            echo "ERRO: bundle aninhado detectado — Runner.app dentro de Runner.app!"
+            exit 1
+          fi
+          echo "Estrutura OK (sem bundle aninhado)"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
