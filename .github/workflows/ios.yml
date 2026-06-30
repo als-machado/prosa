@@ -28,17 +28,44 @@ jobs:
       - name: Versão do Xcode
         run: xcodebuild -version
 
-      # Fase 1: flutter build ios configura pods e compila Dart corretamente.
-      # CODE_SIGNING_ALLOWED=NO pula o embed de frameworks, mas não nos importa
-      # aqui — só precisamos que pods e Dart fiquem prontos para a fase 2.
-      - name: Fase 1 – preparar pods e compilar Dart
+      # Fase 1: flutter build configura pods/SPM e compila Dart.
+      # Com Flutter 3.44+ e SPM, plugins SPM ficam estáticos no executável
+      # e Flutter.framework é embedado via Run Script (não afetado por
+      # CODE_SIGNING_ALLOWED=NO). Verificamos se o bundle já está completo
+      # antes de rodar a fase 2.
+      - name: Fase 1 – preparar pods/SPM e compilar Dart
         run: |
           flutter build ios --release --no-codesign 2>&1 | tee /tmp/flutter_build.log || true
 
-      # Fase 2: xcodebuild archive sem CODE_SIGNING_ALLOWED=NO.
-      # Isso preserva a fase "Embed Frameworks" e produz bundle completo.
-      - name: Fase 2 – archive com frameworks embedados
+      - name: Verificar bundle da fase 1
+        id: fase1
         run: |
+          APP="build/ios/iphoneos/Runner.app"
+          echo "=== Estrutura da fase 1 ==="
+          if [ ! -d "$APP" ]; then
+            echo "Runner.app ausente após fase 1"
+            tail -40 /tmp/flutter_build.log
+            exit 1
+          fi
+          ls -la "$APP/"
+          echo "=== Frameworks ==="
+          ls "$APP/Frameworks/" 2>/dev/null || echo "(diretório Frameworks ausente)"
+          FW_COUNT=$(ls "$APP/Frameworks/" 2>/dev/null | wc -l | tr -d ' ')
+          echo "Frameworks encontrados: $FW_COUNT"
+          if [ "$FW_COUNT" -gt 0 ]; then
+            echo "completo=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "completo=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Fase 2: xcodebuild archive sem CODE_SIGNING_ALLOWED=NO.
+      # Isso preserva o "Embed Frameworks" e produz bundle completo.
+      # Remove o output da fase 1 primeiro para evitar bundle aninhado.
+      - name: Fase 2 – archive com frameworks embedados
+        if: steps.fase1.outputs.completo == 'false'
+        run: |
+          echo "Fase 1 incompleta (sem Frameworks). Executando archive…"
+          rm -rf build/ios/iphoneos/Runner.app
           set -o pipefail
           xcodebuild \
             -workspace ios/Runner.xcworkspace \
@@ -54,57 +81,75 @@ jobs:
             archive \
             2>&1 | tee /tmp/xcode_build.log
 
-      - name: Verificar Runner.app
+      - name: Localizar e validar Runner.app
         run: |
-          APP_PATH="build/Runner.xcarchive/Products/Applications/Runner.app"
-          if [ ! -d "$APP_PATH" ]; then
-            APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData \
-              -path "*/InstallationBuildProductsLocation/Applications/Runner.app" \
-              -type d 2>/dev/null | head -1)
+          # Fase 1 completa: usa o bundle gerado pelo flutter build diretamente.
+          # Fase 2 executada: usa o xcarchive (Runner.app da fase 1 foi deletado).
+          if [ -d "build/ios/iphoneos/Runner.app" ]; then
+            APP_PATH="build/ios/iphoneos/Runner.app"
+            echo "Usando bundle da fase 1"
+          else
+            APP_PATH="build/Runner.xcarchive/Products/Applications/Runner.app"
+            if [ ! -d "$APP_PATH" ]; then
+              APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData \
+                -path "*/InstallationBuildProductsLocation/Applications/Runner.app" \
+                -type d 2>/dev/null | head -1)
+            fi
+            echo "Usando bundle da fase 2: $APP_PATH"
           fi
 
-          echo "=== Runner.app: $APP_PATH ==="
-
           if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
-            echo "Runner.app não encontrado — build falhou."
-            tail -80 /tmp/xcode_build.log
+            echo "ERRO: Runner.app não encontrado"
+            tail -80 /tmp/xcode_build.log 2>/dev/null || tail -80 /tmp/flutter_build.log
             exit 1
           fi
 
-          if [ ! -f "$APP_PATH/Info.plist" ]; then
-            echo "Info.plist ausente."
+          echo "=== Runner.app: $APP_PATH ==="
+          ls -la "$APP_PATH/"
+
+          # Detectar e achatar bundle aninhado (Runner.app/Runner.app/)
+          if [ -d "$APP_PATH/Runner.app" ]; then
+            echo "Bundle aninhado detectado — usando bundle interno"
+            APP_PATH="$APP_PATH/Runner.app"
+            echo "=== Bundle interno ==="
             ls -la "$APP_PATH/"
+          fi
+
+          if [ ! -f "$APP_PATH/Info.plist" ]; then
+            echo "ERRO: Info.plist ausente"
+            ls -la "$APP_PATH/" 2>/dev/null
             exit 1
           fi
 
           echo "=== Frameworks ==="
-          ls "$APP_PATH/Frameworks/" 2>/dev/null || echo "(Frameworks ausente — app vai crashar no dispositivo)"
+          ls "$APP_PATH/Frameworks/" 2>/dev/null || echo "(sem Frameworks)"
 
           if [ ! -d "$APP_PATH/Frameworks" ] || [ -z "$(ls -A "$APP_PATH/Frameworks" 2>/dev/null)" ]; then
-            echo "Frameworks vazio — build incompleto."
+            echo "ERRO: Frameworks vazios — bundle incompleto"
+            tail -80 /tmp/xcode_build.log 2>/dev/null || tail -80 /tmp/flutter_build.log
             exit 1
           fi
 
-          echo "Bundle completo. Copiando…"
-          rm -rf build/ios/Release-iphoneos/Runner.app
-          mkdir -p build/ios/Release-iphoneos
-          cp -r "$APP_PATH" build/ios/Release-iphoneos/Runner.app
+          echo "Bundle OK. Copiando para staging…"
+          rm -rf /tmp/runner_app_staging
+          cp -r "$APP_PATH" /tmp/runner_app_staging
 
       - name: Empacotar IPA
         run: |
-          mkdir -p Payload
-          cp -r build/ios/Release-iphoneos/Runner.app Payload/
+          rm -rf Payload
+          mkdir Payload
+          cp -r /tmp/runner_app_staging Payload/Runner.app
           zip -r prosa.ipa Payload/
           rm -rf Payload
 
-      - name: Validar e listar conteúdo do IPA
+      - name: Validar IPA
         run: |
           echo "=== Frameworks e executável no IPA ==="
           unzip -l prosa.ipa | grep -E "(\.framework|\.dylib|/Runner$)" | head -60
 
           if unzip -l prosa.ipa | grep -q "Runner\.app/Runner\.app"; then
             echo ""
-            echo "ERRO: bundle aninhado detectado — Runner.app dentro de Runner.app!"
+            echo "ERRO: bundle aninhado no IPA — Runner.app dentro de Runner.app!"
             exit 1
           fi
           echo "Estrutura OK (sem bundle aninhado)"
