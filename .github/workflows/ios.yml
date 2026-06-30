@@ -23,7 +23,12 @@ jobs:
         run: flutter pub get
 
       - name: Build iOS (sem assinatura)
-        run: flutter build ios --release --no-codesign
+        run: flutter build ios --release --no-codesign --verbose 2>&1 | tee /tmp/flutter_build.log; exit ${PIPESTATUS[0]}
+
+      - name: Mostrar erros do build
+        if: failure()
+        run: |
+          grep -E "error:|CODE_SIGN|DEVELOPMENT_TEAM|signing|Signing|provision" /tmp/flutter_build.log | grep -v "^note:" | head -100 || tail -200 /tmp/flutter_build.log
 
       - name: Empacotar IPA
         run: |
