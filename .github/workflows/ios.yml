@@ -96,6 +96,11 @@ jobs:
           zip -r prosa.ipa Payload/
           rm -rf Payload
 
+      - name: Listar conteúdo do IPA (diagnóstico)
+        run: |
+          echo "=== Frameworks e executável no IPA ==="
+          unzip -l prosa.ipa | grep -E "(\.framework|\.dylib|/Runner$)" | head -60
+
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
