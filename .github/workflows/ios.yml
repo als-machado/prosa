@@ -33,6 +33,7 @@ jobs:
 
       - name: Build iOS (sem assinatura)
         run: |
+          set -o pipefail
           xcodebuild \
             -workspace ios/Runner.xcworkspace \
             -scheme Runner \
@@ -43,15 +44,25 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGN_ENTITLEMENTS="" \
             DEVELOPMENT_TEAM="" \
+            SKIP_INSTALL=NO \
             archive \
             2>&1 | tee /tmp/build.log
 
       - name: Verificar Runner.app
         run: |
+          # Tenta primeiro o caminho canônico do xcarchive finalizado.
+          # Se o archive falhar no passo de codesign (mas a compilação tiver
+          # completado), cai no InstallationBuildProductsLocation como fallback.
           APP_PATH="build/Runner.xcarchive/Products/Applications/Runner.app"
+          if [ ! -d "$APP_PATH" ]; then
+            APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData \
+              -path "*/InstallationBuildProductsLocation/Applications/Runner.app" \
+              -type d 2>/dev/null | head -1)
+          fi
+
           echo "=== Runner.app encontrado em: $APP_PATH ==="
 
-          if [ ! -d "$APP_PATH" ]; then
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
             echo "Runner.app não encontrado — build falhou."
             tail -80 /tmp/build.log
             exit 1
