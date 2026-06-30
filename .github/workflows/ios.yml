@@ -159,16 +159,20 @@ jobs:
           APP=/tmp/runner_app_staging
           for fw in "$APP/Frameworks/"*.framework; do
             name=$(basename "$fw")
-            bin="${fw%%.framework}/${name%.framework}"
+            binary_name="${name%.framework}"
+            bin="$fw/$binary_name"
+            echo "--- $name (bin: $binary_name) ---"
             if [ -f "$bin" ]; then
-              echo "--- $name ---"
-              otool -L "$bin" | grep -v "^$bin:" | head -20
+              otool -L "$bin" | head -20
+            else
+              echo "  [binário não encontrado: $bin]"
+              ls "$fw/" 2>/dev/null
             fi
           done
 
           echo ""
           echo "=== Dependências do executável Runner ==="
-          otool -L "$APP/Runner" | grep -v "^$APP/Runner:" | head -30
+          otool -L "$APP/Runner" | head -40
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
