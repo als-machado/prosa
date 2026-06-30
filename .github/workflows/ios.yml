@@ -31,12 +31,15 @@ jobs:
           ls /Applications/ | grep -i xcode || echo "nenhuma instalação encontrada"
 
       - name: Build iOS (sem assinatura)
-        run: flutter build ios --release --no-codesign --verbose 2>&1 | tee /tmp/build.log; exit ${PIPESTATUS[0]}
+        run: flutter build ios --release --no-codesign 2>&1 | tee /tmp/build.log; exit ${PIPESTATUS[0]}
 
       - name: Mostrar erros do build
         if: failure()
         run: |
-          grep -E "error:|CODE_SIGN|signing|DEVELOPMENT_TEAM|provision|Xcode_|xcframework" /tmp/build.log | grep -v "^note:" | head -150 || tail -200 /tmp/build.log
+          echo "=== Últimas 300 linhas do log ==="
+          tail -300 /tmp/build.log
+          echo "=== Linhas com 'error:' ==="
+          grep -n " error:" /tmp/build.log | grep -v "^note:" | head -50 || true
 
       - name: Empacotar IPA
         run: |
