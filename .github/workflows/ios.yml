@@ -137,17 +137,31 @@ jobs:
       # Flutter.framework hard-linka MobileCoreServices (depreciado iOS 14).
       # Se removido no iOS 26, o dyld mata o processo em <10ms antes de qualquer
       # código rodar. Tornamos o link weak para que o dyld ignore a ausência.
-      - name: Patch Flutter.framework – weak link de frameworks removidos no iOS 26
+      - name: Patch binários – weak link de frameworks removidos no iOS 26
         run: |
-          FW=/tmp/runner_app_staging/Frameworks/Flutter.framework/Flutter
-          echo "=== Todas as dependências do Flutter.framework ANTES do patch ==="
+          APP=/tmp/runner_app_staging
+          FW="$APP/Frameworks/Flutter.framework/Flutter"
+          RUNNER="$APP/Runner"
+
+          # Flutter.framework
+          echo "=== Flutter.framework ANTES ==="
           otool -L "$FW"
-          echo "=== Aplicando patch ==="
+          echo "=== Patch Flutter.framework ==="
           python3 scripts/patch_flutter_mobile_core.py "$FW"
-          echo "=== Dependências APÓS patch (verificação) ==="
-          otool -L "$FW" | grep -i "MobileCore\|OpenGL" || echo "(nenhum dos targets encontrado — todos já são weak ou ausentes)"
-          # Re-sign ad-hoc; AltServer substitui a assinatura ao instalar
           codesign -f -s - "$FW" 2>/dev/null || true
+
+          # Executável Runner (tem CoreServices hard-linked via plugins SPM)
+          echo "=== Runner ANTES ==="
+          otool -L "$RUNNER"
+          echo "=== Patch Runner ==="
+          python3 scripts/patch_flutter_mobile_core.py "$RUNNER"
+          codesign -f -s - "$RUNNER" 2>/dev/null || true
+
+          echo "=== Verificação final (CoreServices/MobileCoreServices) ==="
+          echo "Flutter.framework:"
+          otool -L "$FW" | grep -i "CoreServices\|MobileCoreServices" || echo "  (nenhum hard)"
+          echo "Runner:"
+          otool -L "$RUNNER" | grep -i "CoreServices\|MobileCoreServices" || echo "  (nenhum hard)"
 
       - name: Empacotar IPA
         run: |
@@ -187,7 +201,7 @@ jobs:
 
           echo ""
           echo "=== Dependências do executável Runner ==="
-          otool -L "$APP/Runner" | head -40
+          otool -L "$APP/Runner"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
