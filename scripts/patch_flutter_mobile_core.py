@@ -32,7 +32,7 @@ ALWAYS_KEEP_HARD = {
 }
 
 def should_make_weak(name_bytes):
-    name = name_bytes.split(b'\x00')[0]
+    name = bytes(name_bytes).split(b'\x00')[0]
     if name in ALWAYS_KEEP_HARD:
         return False
     if name.startswith(b'@rpath/'):
