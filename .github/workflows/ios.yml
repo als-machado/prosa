@@ -163,14 +163,17 @@ jobs:
 
           echo ""
           echo "=== VERIFICAÇÃO: deps hard-linked restantes após patch ==="
-          echo "(lista o que ainda é hard e não é @rpath nem libSystem/libobjc/libc++)"
-          echo "(deve estar VAZIA — qualquer /System/ ou /usr/lib/swift/ aqui é candidato ao erro 85)"
+          echo "(lista o que ainda é HARD e não é @rpath nem libSystem/libobjc/libc++)"
+          echo "(deve estar VAZIA — qualquer /System/ ou /usr/lib/swift/ sem 'weak' aqui é candidato ao erro 85)"
           echo ""
+          # otool neste macOS formata weak links como "..., weak)" (vírgula+weak dentro do parêntese
+          # de versão), não como "(weak)" separado. Filtramos por ", weak)" ou pelo token "weak" no fim.
           for bin in "$RUNNER" "$FW"; do
             name=$(basename "$(dirname "$bin")")/$(basename "$bin")
             echo "--- $name ---"
             otool -L "$bin" \
               | tail -n +2 \
+              | grep -v ", weak)" \
               | grep -v "(weak)" \
               | grep -v "@rpath/" \
               | grep -v "libSystem\.B\.dylib\|libobjc\.A\.dylib\|libc++\.1\|libc++abi" \
@@ -182,9 +185,10 @@ jobs:
           echo "=== Contagem weak/hard por binário ==="
           for bin in "$RUNNER" "$FW"; do
             name=$(basename "$bin")
-            hard=$( otool -L "$bin" | tail -n +2 | grep -v "(weak)" | grep -c "/System\|/usr/lib/swift" || true )
-            weak=$( otool -L "$bin" | grep -c "(weak)" || true )
-            echo "$name: $hard hard-system, $weak weak"
+            total=$( otool -L "$bin" | tail -n +2 | grep -c "/System\|/usr/lib/swift" || true )
+            weak=$(  otool -L "$bin" | tail -n +2 | grep -c "weak" || true )
+            hard=$(( total - weak ))
+            echo "$name: $hard hard-system, $weak weak (total system: $total)"
           done
 
       - name: Empacotar IPA
