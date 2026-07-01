@@ -137,31 +137,55 @@ jobs:
       # Flutter.framework hard-linka MobileCoreServices (depreciado iOS 14).
       # Se removido no iOS 26, o dyld mata o processo em <10ms antes de qualquer
       # código rodar. Tornamos o link weak para que o dyld ignore a ausência.
+      # NÃO re-assinamos após o patch: assinar só o binário (sem o dir do
+      # .framework) deixa o CodeResources com hashes velhos. AltServer substitui
+      # todas as assinaturas na instalação e lida melhor com binários não-assinados
+      # do que com assinaturas parcialmente inválidas.
       - name: Patch binários – weak link de frameworks removidos no iOS 26
         run: |
           APP=/tmp/runner_app_staging
           FW="$APP/Frameworks/Flutter.framework/Flutter"
           RUNNER="$APP/Runner"
 
-          # Flutter.framework
-          echo "=== Flutter.framework ANTES ==="
-          otool -L "$FW"
-          echo "=== Patch Flutter.framework ==="
-          python3 scripts/patch_flutter_mobile_core.py "$FW"
-          codesign -f -s - "$FW" 2>/dev/null || true
-
-          # Executável Runner (tem CoreServices hard-linked via plugins SPM)
-          echo "=== Runner ANTES ==="
-          otool -L "$RUNNER"
           echo "=== Patch Runner ==="
           python3 scripts/patch_flutter_mobile_core.py "$RUNNER"
-          codesign -f -s - "$RUNNER" 2>/dev/null || true
 
-          echo "=== Verificação final (CoreServices/MobileCoreServices) ==="
-          echo "Flutter.framework:"
-          otool -L "$FW" | grep -i "CoreServices\|MobileCoreServices" || echo "  (nenhum hard)"
-          echo "Runner:"
-          otool -L "$RUNNER" | grep -i "CoreServices\|MobileCoreServices" || echo "  (nenhum hard)"
+          echo ""
+          echo "=== Patch de todos os frameworks embarcados ==="
+          for fw_dir in "$APP/Frameworks"/*/; do
+            fw_name=$(basename "$fw_dir" .framework)
+            fw_bin="$fw_dir/$fw_name"
+            if [ -f "$fw_bin" ]; then
+              echo "--- $fw_name ---"
+              python3 scripts/patch_flutter_mobile_core.py "$fw_bin"
+            fi
+          done
+
+          echo ""
+          echo "=== VERIFICAÇÃO: deps hard-linked restantes após patch ==="
+          echo "(lista o que ainda é hard e não é @rpath nem libSystem/libobjc/libc++)"
+          echo "(deve estar VAZIA — qualquer /System/ ou /usr/lib/swift/ aqui é candidato ao erro 85)"
+          echo ""
+          for bin in "$RUNNER" "$FW"; do
+            name=$(basename "$(dirname "$bin")")/$(basename "$bin")
+            echo "--- $name ---"
+            otool -L "$bin" \
+              | tail -n +2 \
+              | grep -v "(weak)" \
+              | grep -v "@rpath/" \
+              | grep -v "libSystem\.B\.dylib\|libobjc\.A\.dylib\|libc++\.1\|libc++abi" \
+              | grep "/" \
+              || echo "  (nenhum hard extra — OK)"
+          done
+
+          echo ""
+          echo "=== Contagem weak/hard por binário ==="
+          for bin in "$RUNNER" "$FW"; do
+            name=$(basename "$bin")
+            hard=$( otool -L "$bin" | tail -n +2 | grep -v "(weak)" | grep -c "/System\|/usr/lib/swift" || true )
+            weak=$( otool -L "$bin" | grep -c "(weak)" || true )
+            echo "$name: $hard hard-system, $weak weak"
+          done
 
       - name: Empacotar IPA
         run: |
