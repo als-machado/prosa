@@ -1,8 +1,13 @@
 """
-Patcha Flutter.framework/Flutter para tornar MobileCoreServices um weak link.
-MobileCoreServices foi depreciado no iOS 14 e possivelmente removido no iOS 26.
-Com LC_LOAD_WEAK_DYLIB em vez de LC_LOAD_DYLIB, o dyld não mata o processo
-caso o framework não exista no dispositivo.
+Patcha Flutter.framework/Flutter para tornar weak links os frameworks
+depreciados/removidos no iOS 26 que ainda estão como LC_LOAD_DYLIB (hard).
+
+Frameworks-alvo:
+  - MobileCoreServices: depreciado iOS 14, removido iOS 26
+  - OpenGLES: depreciado iOS 12, removido iOS 26
+
+Com LC_LOAD_WEAK_DYLIB em vez de LC_LOAD_DYLIB, o dyld ignora a ausência
+do framework em vez de matar o processo com POSIX error 85.
 """
 import struct, sys
 
@@ -10,6 +15,12 @@ path = sys.argv[1]
 
 LC_LOAD_DYLIB      = 0x0000000C
 LC_LOAD_WEAK_DYLIB = 0x80000018
+
+# Fragmentos de nome (bytes) que identificam cada framework depreciado/removido.
+TARGETS = [
+    b'MobileCoreServices',
+    b'OpenGLES',
+]
 
 def patch_arch(data, offset):
     magic = struct.unpack_from('<I', data, offset)[0]
@@ -25,11 +36,14 @@ def patch_arch(data, offset):
             break
         if cmd == LC_LOAD_DYLIB:
             name_off = struct.unpack_from('<I', data, pos + 8)[0]
-            name_bytes = data[pos + name_off : pos + name_off + 60]
-            if b'MobileCoreServices' in name_bytes:
-                print(f'  → Patch: LC_LOAD_DYLIB @ offset {pos} → LC_LOAD_WEAK_DYLIB')
-                struct.pack_into('<I', data, pos, LC_LOAD_WEAK_DYLIB)
-                found = True
+            name_bytes = data[pos + name_off : pos + name_off + 80]
+            for target in TARGETS:
+                if target in name_bytes:
+                    name_str = name_bytes.split(b'\x00')[0].decode('utf-8', errors='replace')
+                    print(f'  → Patch: LC_LOAD_DYLIB @ offset {pos} ({name_str}) → LC_LOAD_WEAK_DYLIB')
+                    struct.pack_into('<I', data, pos, LC_LOAD_WEAK_DYLIB)
+                    found = True
+                    break
         pos += cmdsize
     return found
 
@@ -52,7 +66,6 @@ if patched:
     with open(path, 'wb') as f:
         f.write(data)
     print('Patch aplicado com sucesso.')
-    sys.exit(0)
 else:
-    print('MobileCoreServices não encontrado ou já é weak.')
-    sys.exit(0)
+    print('Nenhum target encontrado (já são weak ou não estão presentes).')
+sys.exit(0)

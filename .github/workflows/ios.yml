@@ -137,15 +137,16 @@ jobs:
       # Flutter.framework hard-linka MobileCoreServices (depreciado iOS 14).
       # Se removido no iOS 26, o dyld mata o processo em <10ms antes de qualquer
       # código rodar. Tornamos o link weak para que o dyld ignore a ausência.
-      - name: Patch Flutter.framework – MobileCoreServices weak link
+      - name: Patch Flutter.framework – weak link de frameworks removidos no iOS 26
         run: |
           FW=/tmp/runner_app_staging/Frameworks/Flutter.framework/Flutter
-          echo "=== Antes do patch ==="
-          otool -L "$FW" | grep -i "MobileCore\|CoreServices" || echo "(nenhum)"
+          echo "=== Todas as dependências do Flutter.framework ANTES do patch ==="
+          otool -L "$FW"
+          echo "=== Aplicando patch ==="
           python3 scripts/patch_flutter_mobile_core.py "$FW"
-          echo "=== Após patch ==="
-          otool -L "$FW" | grep -i "MobileCore\|CoreServices" || echo "(nenhum)"
-          # Re-sign ad-hoc; AltServer substitui por completo ao instalar
+          echo "=== Dependências APÓS patch (verificação) ==="
+          otool -L "$FW" | grep -i "MobileCore\|OpenGL" || echo "(nenhum dos targets encontrado — todos já são weak ou ausentes)"
+          # Re-sign ad-hoc; AltServer substitui a assinatura ao instalar
           codesign -f -s - "$FW" 2>/dev/null || true
 
       - name: Empacotar IPA
