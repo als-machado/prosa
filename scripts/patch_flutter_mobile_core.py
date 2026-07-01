@@ -72,11 +72,31 @@ with open(path, 'rb') as f:
 magic_be = struct.unpack_from('>I', data, 0)[0]
 patched = False
 
-if magic_be == 0xCAFEBABE:  # FAT binary
+if magic_be == 0xCAFEBABE:  # FAT binary (32-bit offsets)
+    # fat_header: magic(4) + nfat_arch(4)
+    # fat_arch:   cputype(4) + cpusubtype(4) + offset(4) + size(4) + align(4) = 20 bytes
+    # offset field está em +8 dentro de cada fat_arch (após cputype e cpusubtype)
     nfat = struct.unpack_from('>I', data, 4)[0]
     print(f'FAT binary com {nfat} arch(s)')
     for i in range(nfat):
-        off = struct.unpack_from('>I', data, 8 + i * 20)[0]
+        fat_arch_base = 8 + i * 20
+        off = struct.unpack_from('>I', data, fat_arch_base + 8)[0]
+        if off >= len(data):
+            print(f'  arch {i}: offset {off:#x} fora dos limites — pulando')
+            continue
+        print(f'  arch {i}: offset {off:#010x}')
+        patched |= patch_arch(data, off)
+elif magic_be == 0xCAFEBABF:  # FAT64 binary (64-bit offsets)
+    # fat_arch_64: cputype(4) + cpusubtype(4) + offset(8) + size(8) + align(4) + reserved(4) = 32 bytes
+    nfat = struct.unpack_from('>I', data, 4)[0]
+    print(f'FAT64 binary com {nfat} arch(s)')
+    for i in range(nfat):
+        fat_arch_base = 8 + i * 32
+        off = struct.unpack_from('>Q', data, fat_arch_base + 8)[0]
+        if off >= len(data):
+            print(f'  arch {i}: offset {off:#x} fora dos limites — pulando')
+            continue
+        print(f'  arch {i}: offset {off:#010x}')
         patched |= patch_arch(data, off)
 else:
     patched = patch_arch(data, 0)
