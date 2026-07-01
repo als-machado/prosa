@@ -137,10 +137,17 @@ jobs:
       # Flutter.framework hard-linka MobileCoreServices (depreciado iOS 14).
       # Se removido no iOS 26, o dyld mata o processo em <10ms antes de qualquer
       # código rodar. Tornamos o link weak para que o dyld ignore a ausência.
-      # NÃO re-assinamos após o patch: assinar só o binário (sem o dir do
-      # .framework) deixa o CodeResources com hashes velhos. AltServer substitui
-      # todas as assinaturas na instalação e lida melhor com binários não-assinados
-      # do que com assinaturas parcialmente inválidas.
+      #
+      # TXM (Trusted Execution Monitor, hardware security layer) verifica page
+      # hashes do code directory. Se a assinatura original do CI ficar inválida
+      # (patch mudou bytes do __TEXT) e o AltServer fizer só certificate
+      # replacement (sem rebuild do code directory), o TXM rejeita com
+      # "CodeSignature: selector: 24 | 0x53 | 0x23 | 9".
+      #
+      # Fix: assinar em ordem inner→outer APÓS o patch, com ad-hoc (-s -).
+      # Isso reconstrói os page hashes cobrindo o conteúdo patcheado e
+      # atualiza o CodeResources de cada framework. O AltServer então substitui
+      # os certificados ad-hoc pelos do developer sem precisar recalcular hashes.
       - name: Patch binários – weak link de frameworks removidos no iOS 26
         run: |
           APP=/tmp/runner_app_staging
@@ -160,6 +167,27 @@ jobs:
               python3 scripts/patch_flutter_mobile_core.py "$fw_bin"
             fi
           done
+
+          echo ""
+          echo "=== Re-assinar ad-hoc após patch (inner→outer, recalcula page hashes) ==="
+          # 1. Cada framework (assina o dir = atualiza CodeResources interno)
+          for fw_dir in "$APP/Frameworks"/*/; do
+            fw_name=$(basename "$fw_dir" .framework)
+            echo "  codesign framework: $fw_name"
+            codesign -f -s - "$fw_dir" 2>/dev/null \
+              && echo "    OK" \
+              || echo "    WARN: falhou (AltServer tentará resolver)"
+          done
+          # 2. Runner (executável principal)
+          echo "  codesign Runner"
+          codesign -f -s - "$RUNNER" 2>/dev/null \
+            && echo "    OK" \
+            || echo "    WARN: falhou"
+          # 3. Bundle inteiro (computa CodeResources do app)
+          echo "  codesign app bundle"
+          codesign -f -s - "$APP" 2>/dev/null \
+            && echo "    OK" \
+            || echo "    WARN: falhou"
 
           echo ""
           echo "=== VERIFICAÇÃO: deps hard-linked restantes após patch ==="
