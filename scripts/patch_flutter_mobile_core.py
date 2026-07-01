@@ -17,9 +17,11 @@ LC_LOAD_DYLIB      = 0x0000000C
 LC_LOAD_WEAK_DYLIB = 0x80000018
 
 # Fragmentos de nome (bytes) que identificam cada framework depreciado/removido.
+# CoreServices e MobileCoreServices são o mesmo ecossistema (UTType, etc.) e
+# foram depreciados juntos em favor de UniformTypeIdentifiers no iOS 14+.
 TARGETS = [
     b'MobileCoreServices',
-    b'OpenGLES',
+    b'CoreServices',
 ]
 
 def patch_arch(data, offset):
