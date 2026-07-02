@@ -138,16 +138,12 @@ jobs:
       # Se removido no iOS 26, o dyld mata o processo em <10ms antes de qualquer
       # código rodar. Tornamos o link weak para que o dyld ignore a ausência.
       #
-      # TXM (Trusted Execution Monitor, hardware security layer) verifica page
-      # hashes do code directory. Se a assinatura original do CI ficar inválida
-      # (patch mudou bytes do __TEXT) e o AltServer fizer só certificate
-      # replacement (sem rebuild do code directory), o TXM rejeita com
-      # "CodeSignature: selector: 24 | 0x53 | 0x23 | 9".
-      #
-      # Fix: assinar em ordem inner→outer APÓS o patch, com ad-hoc (-s -).
-      # Isso reconstrói os page hashes cobrindo o conteúdo patcheado e
-      # atualiza o CodeResources de cada framework. O AltServer então substitui
-      # os certificados ad-hoc pelos do developer sem precisar recalcular hashes.
+      # Após o patch removemos qualquer assinatura existente. NÃO fazemos ad-hoc
+      # sign aqui: codesign -s - gera Code Directory com teamID vazio. Se o
+      # AltServer fizer "certificate replacement" (mantém CD, troca CMS), o TXM
+      # detecta CD.teamID="" vs cert.teamID=real e rejeita com
+      # "CodeSignature: selector: 24". Sem assinatura, o AltServer faz fresh
+      # full-sign e preenche teamID em todos os blobs corretamente.
       - name: Patch binários – weak link de frameworks removidos no iOS 26
         run: |
           APP=/tmp/runner_app_staging
@@ -169,25 +165,20 @@ jobs:
           done
 
           echo ""
-          echo "=== Re-assinar ad-hoc após patch (inner→outer, recalcula page hashes) ==="
-          # 1. Cada framework (assina o dir = atualiza CodeResources interno)
+          echo "=== Remover assinatura existente (deixar sem assinar para AltServer fresh-sign) ==="
+          # NÃO fazemos ad-hoc sign aqui. Motivo:
+          # codesign -s - cria Code Directory com teamID vazio. Se o AltServer
+          # fizer "certificate replacement" (mantém nosso CD, troca só o CMS), o TXM
+          # detecta inconsistência entre CD.teamID="" e o cert do developer → rejeita
+          # com "CodeSignature: selector: 24 | 0x53 | 0x23 | 9".
+          # Sem assinatura, o AltServer faz fresh full-sign e preenche teamID corretamente.
           for fw_dir in "$APP/Frameworks"/*/; do
             fw_name=$(basename "$fw_dir" .framework)
-            echo "  codesign framework: $fw_name"
-            codesign -f -s - "$fw_dir" 2>/dev/null \
-              && echo "    OK" \
-              || echo "    WARN: falhou (AltServer tentará resolver)"
+            codesign --remove-signature "$fw_dir" 2>/dev/null || true
           done
-          # 2. Runner (executável principal)
-          echo "  codesign Runner"
-          codesign -f -s - "$RUNNER" 2>/dev/null \
-            && echo "    OK" \
-            || echo "    WARN: falhou"
-          # 3. Bundle inteiro (computa CodeResources do app)
-          echo "  codesign app bundle"
-          codesign -f -s - "$APP" 2>/dev/null \
-            && echo "    OK" \
-            || echo "    WARN: falhou"
+          codesign --remove-signature "$RUNNER" 2>/dev/null || true
+          codesign --remove-signature "$APP" 2>/dev/null || true
+          echo "Assinaturas removidas — AltServer fará fresh sign com teamID correto."
 
           echo ""
           echo "=== VERIFICAÇÃO: deps hard-linked restantes após patch ==="
