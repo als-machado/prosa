@@ -188,6 +188,12 @@ class _EditorToolbarState extends State<EditorToolbar> {
             onPressed: editorState != null ? () => _toggleInline(AppFlowyRichTextKeys.strikethrough) : null,
             isActive: _isAttributeActive(AppFlowyRichTextKeys.strikethrough),
           ),
+          _ToolbarButton(
+            icon: Icons.format_underlined,
+            tooltip: 'Sublinhado (Ctrl+U)',
+            onPressed: editorState != null ? () => _toggleInline(AppFlowyRichTextKeys.underline) : null,
+            isActive: _isAttributeActive(AppFlowyRichTextKeys.underline),
+          ),
           const _Separator(),
           _ToolbarButton(
             icon: Icons.title,
