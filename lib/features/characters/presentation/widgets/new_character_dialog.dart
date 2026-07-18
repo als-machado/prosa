@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/file_name_sanitizer.dart';
 
 class NewCharacterDialog extends StatefulWidget {
   final String projectPath;
@@ -20,7 +21,7 @@ class _NewCharacterDialogState extends State<NewCharacterDialog> {
   }
 
   void _create() {
-    final name = _nameCtrl.text.trim();
+    final name = sanitizeFileName(_nameCtrl.text);
     if (name.isEmpty) return;
     final dir = Directory('${widget.projectPath}/${AppConstants.charactersDir}/$name');
     dir.createSync(recursive: true);

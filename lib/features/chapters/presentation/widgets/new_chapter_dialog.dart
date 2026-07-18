@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/file_name_sanitizer.dart';
 
 class NewChapterDialog extends StatefulWidget {
   final String projectPath;
@@ -31,7 +32,7 @@ class _NewChapterDialogState extends State<NewChapterDialog> {
   }
 
   void _create() {
-    final title = _titleCtrl.text.trim();
+    final title = sanitizeFileName(_titleCtrl.text);
     final dirName = title.isNotEmpty ? '$_number - $title' : '$_number';
     final chapterDir = Directory('${widget.projectPath}/${AppConstants.chaptersDir}/$dirName');
     chapterDir.createSync(recursive: true);
