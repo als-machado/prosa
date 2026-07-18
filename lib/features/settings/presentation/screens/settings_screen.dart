@@ -144,9 +144,11 @@ class _SettingsBody extends ConsumerWidget {
     await ref.read(settingsProvider.notifier).save(settings.copyWith(editorTabSize: picked));
   }
 
+  static const _customProviderSentinel = '_custom_';
+
   Future<void> _pickGitProvider(BuildContext context, WidgetRef ref) async {
     final providers = [GitProvider.github, GitProvider.gitlab];
-    final picked = await showDialog<GitProvider>(
+    final picked = await showDialog<Object>(
       context: context,
       builder: (_) => SimpleDialog(
         title: const Text('Servidor Git'),
@@ -156,15 +158,38 @@ class _SettingsBody extends ConsumerWidget {
             child: Text(p.name),
           )),
           SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, null),
+            onPressed: () => Navigator.pop(context, _customProviderSentinel),
             child: const Text('Servidor personalizado...'),
           ),
         ],
       ),
     );
-    if (picked != null) {
-      await ref.read(settingsProvider.notifier).save(settings.copyWith(gitProvider: picked));
+    if (picked == null) return;
+
+    if (picked == _customProviderSentinel) {
+      if (!context.mounted) return;
+      final host = await showDialog<String>(
+        context: context,
+        builder: (_) => const _TextInputDialog(
+          title: 'Servidor personalizado',
+          label: 'Host (ex.: git.minhaempresa.com)',
+        ),
+      );
+      if (host == null || host.trim().isEmpty) return;
+      final cleanHost = host
+          .trim()
+          .replaceFirst(RegExp(r'^https?://'), '')
+          .replaceFirst(RegExp(r'/$'), '');
+      // Assume API compatível com GitLab (self-hosted mais comum).
+      await ref.read(settingsProvider.notifier).save(
+            settings.copyWith(gitProvider: GitProvider.custom(host: cleanHost)),
+          );
+      return;
     }
+
+    await ref
+        .read(settingsProvider.notifier)
+        .save(settings.copyWith(gitProvider: picked as GitProvider));
   }
 
   Future<void> _editToken(BuildContext context, WidgetRef ref) async {
@@ -174,6 +199,7 @@ class _SettingsBody extends ConsumerWidget {
         title: 'Token de acesso Git',
         label: 'Personal Access Token',
         initialValue: settings.gitToken,
+        obscure: true,
       ),
     );
     if (result == null) return;
@@ -198,8 +224,9 @@ class _TextInputDialog extends StatefulWidget {
   final String title;
   final String label;
   final String? initialValue;
+  final bool obscure;
 
-  const _TextInputDialog({required this.title, required this.label, this.initialValue});
+  const _TextInputDialog({required this.title, required this.label, this.initialValue, this.obscure = false});
 
   @override
   State<_TextInputDialog> createState() => _TextInputDialogState();
@@ -230,6 +257,7 @@ class _TextInputDialogState extends State<_TextInputDialog> {
           controller: _ctrl,
           decoration: InputDecoration(labelText: widget.label, border: const OutlineInputBorder()),
           autofocus: true,
+          obscureText: widget.obscure,
           onSubmitted: (v) => Navigator.pop(context, v.trim()),
         ),
       ),

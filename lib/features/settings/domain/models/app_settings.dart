@@ -76,6 +76,9 @@ class AppSettings {
         localProjectsPath: localProjectsPath ?? this.localProjectsPath,
       );
 
+  /// O gitToken NÃO entra aqui de propósito: ele é persistido à parte no
+  /// armazenamento seguro do sistema (Secret Service via
+  /// flutter_secure_storage), nunca em texto claro no shared_preferences.
   Map<String, dynamic> toMap() => {
         'darkMode': darkMode,
         'editorFont': editorFont,
@@ -86,7 +89,6 @@ class AppSettings {
         'gitProviderApiBase': gitProvider?.apiBase,
         'gitProviderSshUser': gitProvider?.sshUser,
         'gitUsername': gitUsername,
-        'gitToken': gitToken,
         'localProjectsPath': localProjectsPath,
       };
 
@@ -108,7 +110,7 @@ class AppSettings {
     }
     return AppSettings(
       darkMode: m['darkMode'] as bool? ?? false,
-      editorFont: m['editorFont'] as String? ?? 'Georgia',
+      editorFont: m['editorFont'] as String? ?? 'Lora',
       editorFontSize: (m['editorFontSize'] as num?)?.toDouble() ?? 16.0,
       editorTabSize: (m['editorTabSize'] as num?)?.toInt() ?? 4,
       gitProvider: provider,
