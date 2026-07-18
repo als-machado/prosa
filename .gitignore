@@ -78,6 +78,9 @@ lcov.info
 *.freezed.dart
 *.gr.dart
 
+# Pacotes .deb gerados por scripts/build_deb.sh
+/dist/
+
 # Environment files
 .env
 .env.*
