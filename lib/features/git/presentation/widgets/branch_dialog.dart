@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/git_provider.dart';
+import '../../../editor/presentation/providers/editor_provider.dart';
 import '../../../projects/presentation/providers/projects_provider.dart';
+import '../../../projects/presentation/providers/project_tree_provider.dart';
 
 class BranchDialog extends ConsumerStatefulWidget {
   const BranchDialog({super.key});
@@ -24,9 +26,19 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
     final project = ref.read(activeProjectProvider);
     if (project == null) return;
     final git = ref.read(gitServiceProvider);
-    await git.checkout(project.localPath, branch);
+    try {
+      await git.checkout(project.localPath, branch);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao trocar de branch: $e')));
+      }
+      return;
+    }
     ref.invalidate(currentBranchProvider);
     ref.invalidate(branchesProvider);
+    // Trocar de branch muda o conteúdo em disco.
+    ref.invalidate(projectTreeProvider);
+    ref.invalidate(fileContentProvider);
     if (mounted) Navigator.pop(context);
   }
 
@@ -36,7 +48,14 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
     final project = ref.read(activeProjectProvider);
     if (project == null) return;
     final git = ref.read(gitServiceProvider);
-    await git.createBranch(project.localPath, name);
+    try {
+      await git.createBranch(project.localPath, name);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao criar branch: $e')));
+      }
+      return;
+    }
     ref.invalidate(currentBranchProvider);
     ref.invalidate(branchesProvider);
     if (mounted) Navigator.pop(context);

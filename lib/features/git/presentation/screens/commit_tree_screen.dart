@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../data/git_service.dart';
 import '../providers/git_provider.dart';
+import '../../../editor/presentation/providers/editor_provider.dart';
 import '../../../projects/presentation/providers/projects_provider.dart';
+import '../../../projects/presentation/providers/project_tree_provider.dart';
 
 class CommitTreeScreen extends ConsumerWidget {
   const CommitTreeScreen({super.key});
@@ -72,7 +74,19 @@ class _CommitTile extends ConsumerWidget {
     );
     if (confirmed != true) return;
     final git = ref.read(gitServiceProvider);
-    await git.checkout(project.localPath, commit.hash);
+    try {
+      await git.checkout(project.localPath, commit.hash);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro no checkout: $e')));
+      }
+      return;
+    }
+    // O conteúdo em disco mudou: recarrega branch, árvore e arquivo aberto.
+    ref.invalidate(currentBranchProvider);
+    ref.invalidate(branchesProvider);
+    ref.invalidate(projectTreeProvider);
+    ref.invalidate(fileContentProvider);
     if (context.mounted) context.go('/editor');
   }
 }
