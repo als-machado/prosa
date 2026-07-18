@@ -247,8 +247,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
           ),
         ],
         editorStyle: EditorStyle.desktop(
-          padding: const EdgeInsets.symmetric(horizontal: 80),
-          maxWidth: 720,
+          // Sem maxWidth: a biblioteca centraliza um bloco de largura fixa
+          // dentro da janela quando maxWidth é definido, criando um espaço
+          // vazio nas laterais que se soma ao padding e não encolhe com ele.
+          // Deixando null, o padding abaixo é a única margem — a coluna de
+          // texto ocupa toda a largura disponível menos essa margem.
+          padding: EdgeInsets.symmetric(horizontal: settings.editorMarginHorizontal),
           cursorColor: colorScheme.primary,
           selectionColor: colorScheme.primary.withValues(alpha: 0.2),
           textStyleConfiguration: TextStyleConfiguration(

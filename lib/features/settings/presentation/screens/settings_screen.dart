@@ -59,6 +59,13 @@ class _SettingsBody extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _pickTabSize(context, ref),
           ),
+          ListTile(
+            leading: const Icon(Icons.vertical_align_center_outlined),
+            title: const Text('Margens do texto'),
+            subtitle: Text(_marginLabel(settings.editorMarginHorizontal)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _pickMargin(context, ref),
+          ),
         ]),
         const SizedBox(height: 24),
         _Section(title: 'Git', children: [
@@ -142,6 +149,40 @@ class _SettingsBody extends ConsumerWidget {
     );
     if (picked == null) return;
     await ref.read(settingsProvider.notifier).save(settings.copyWith(editorTabSize: picked));
+  }
+
+  // double não pode ser chave de const Map (sobrescreve ==/hashCode) — usa
+  // uma lista de pares em vez disso.
+  static const _marginOptions = [
+    (40.0, 'Estreita'),
+    (60.0, 'Compacta'),
+    (80.0, 'Média'),
+    (120.0, 'Larga'),
+    (160.0, 'Muito larga'),
+  ];
+
+  String _marginLabel(double value) {
+    for (final option in _marginOptions) {
+      if (option.$1 == value) return '${option.$2} (${value.toInt()}px)';
+    }
+    return '${value.toInt()}px';
+  }
+
+  Future<void> _pickMargin(BuildContext context, WidgetRef ref) async {
+    final picked = await showDialog<double>(
+      context: context,
+      builder: (_) => SimpleDialog(
+        title: const Text('Margens do texto'),
+        children: _marginOptions
+            .map((o) => SimpleDialogOption(
+                  onPressed: () => Navigator.pop(context, o.$1),
+                  child: Text('${o.$2} (${o.$1.toInt()}px)'),
+                ))
+            .toList(),
+      ),
+    );
+    if (picked == null) return;
+    await ref.read(settingsProvider.notifier).save(settings.copyWith(editorMarginHorizontal: picked));
   }
 
   static const _customProviderSentinel = '_custom_';

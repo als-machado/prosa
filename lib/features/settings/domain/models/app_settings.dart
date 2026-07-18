@@ -39,6 +39,7 @@ class AppSettings {
   final String editorFont;
   final double editorFontSize;
   final int editorTabSize;
+  final double editorMarginHorizontal;
   final GitProvider? gitProvider;
   final String? gitUsername;
   final String? gitToken;
@@ -49,6 +50,7 @@ class AppSettings {
     this.editorFont = 'Lora',
     this.editorFontSize = 16.0,
     this.editorTabSize = 4,
+    this.editorMarginHorizontal = 80.0,
     this.gitProvider,
     this.gitUsername,
     this.gitToken,
@@ -60,6 +62,7 @@ class AppSettings {
     String? editorFont,
     double? editorFontSize,
     int? editorTabSize,
+    double? editorMarginHorizontal,
     GitProvider? gitProvider,
     String? gitUsername,
     String? gitToken,
@@ -70,6 +73,7 @@ class AppSettings {
         editorFont: editorFont ?? this.editorFont,
         editorFontSize: editorFontSize ?? this.editorFontSize,
         editorTabSize: editorTabSize ?? this.editorTabSize,
+        editorMarginHorizontal: editorMarginHorizontal ?? this.editorMarginHorizontal,
         gitProvider: gitProvider ?? this.gitProvider,
         gitUsername: gitUsername ?? this.gitUsername,
         gitToken: gitToken ?? this.gitToken,
@@ -84,6 +88,7 @@ class AppSettings {
         'editorFont': editorFont,
         'editorFontSize': editorFontSize,
         'editorTabSize': editorTabSize,
+        'editorMarginHorizontal': editorMarginHorizontal,
         'gitProviderHost': gitProvider?.host,
         'gitProviderName': gitProvider?.name,
         'gitProviderApiBase': gitProvider?.apiBase,
@@ -113,6 +118,7 @@ class AppSettings {
       editorFont: m['editorFont'] as String? ?? 'Lora',
       editorFontSize: (m['editorFontSize'] as num?)?.toDouble() ?? 16.0,
       editorTabSize: (m['editorTabSize'] as num?)?.toInt() ?? 4,
+      editorMarginHorizontal: (m['editorMarginHorizontal'] as num?)?.toDouble() ?? 80.0,
       gitProvider: provider,
       gitUsername: m['gitUsername'] as String?,
       gitToken: m['gitToken'] as String?,
