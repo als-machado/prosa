@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'dart:io';
 import '../../../features/projects/presentation/providers/projects_provider.dart';
+import '../../../features/projects/presentation/providers/project_tree_provider.dart';
 import '../../../features/editor/presentation/providers/editor_provider.dart';
 import '../../../features/git/presentation/providers/git_provider.dart';
 import '../../../features/git/presentation/widgets/branch_dialog.dart';
 import '../../../features/chapters/presentation/widgets/new_chapter_dialog.dart';
 import '../../../features/chapters/presentation/widgets/new_scene_dialog.dart';
 import '../../../features/characters/presentation/widgets/new_character_dialog.dart';
+import '../../../features/misc/presentation/widgets/new_markdown_file_dialog.dart';
 import '../../../core/constants/app_constants.dart';
 
 class AppSidebar extends ConsumerWidget {
@@ -73,14 +74,37 @@ class _BranchIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Row(
-        children: [
-          const Icon(Icons.call_split, size: 14),
-          const SizedBox(width: 6),
-          Text(branch, style: Theme.of(context).textTheme.bodySmall),
-        ],
+    // Branch vazia = detached HEAD (checkout de um commit do histórico).
+    // Sem aviso e sem caminho de volta, o escritor fica preso fora da branch.
+    final detached = branch.isEmpty;
+    final theme = Theme.of(context);
+    final color = detached ? theme.colorScheme.error : null;
+
+    return InkWell(
+      onTap: () => showDialog(
+        context: context,
+        builder: (_) => const BranchDialog(),
+      ),
+      child: Tooltip(
+        message: detached
+            ? 'Você está em um commit do histórico, fora de qualquer branch. Clique para voltar a uma branch.'
+            : 'Gerenciar branches',
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Row(
+            children: [
+              Icon(detached ? Icons.warning_amber : Icons.call_split, size: 14, color: color),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  detached ? 'Fora de branch — clique para voltar' : branch,
+                  style: theme.textTheme.bodySmall?.copyWith(color: color),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -92,14 +116,10 @@ class _ProjectTree extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final chaptersDir = Directory('$projectPath/${AppConstants.chaptersDir}');
-    final charactersDir = Directory('$projectPath/${AppConstants.charactersDir}');
-    final chapters = chaptersDir.existsSync()
-        ? chaptersDir.listSync().whereType<Directory>().toList()
-        : <Directory>[];
-    final characters = charactersDir.existsSync()
-        ? charactersDir.listSync().whereType<Directory>().toList()
-        : <Directory>[];
+    final tree = ref.watch(projectTreeProvider(projectPath));
+    final chapters = tree.valueOrNull?.chapters ?? const <ChapterNode>[];
+    final characters = tree.valueOrNull?.characters ?? const <CharacterNode>[];
+    final miscSections = tree.valueOrNull?.miscSections ?? const <MiscSection>[];
 
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -108,30 +128,26 @@ class _ProjectTree extends ConsumerWidget {
           title: 'Capítulos',
           onAdd: () => _showNewChapterDialog(context, ref),
         ),
-        ...chapters.map((d) => _ChapterTile(dir: d, ref: ref)),
+        ...chapters.map((c) => _ChapterTile(chapter: c)),
         const SizedBox(height: 8),
         _SectionHeader(
           title: 'Personagens',
           onAdd: () => _showNewCharacterDialog(context, ref),
         ),
-        ...characters.map((d) => _CharacterTile(dir: d, ref: ref)),
+        ...characters.map((c) => _CharacterTile(character: c)),
         const SizedBox(height: 8),
         _SectionHeader(title: 'Extras', onAdd: null),
-        _MiscTile(
+        _SidebarTile(
           label: 'Sinopse',
+          icon: Icons.description_outlined,
           path: '$projectPath/${AppConstants.miscDir}/${AppConstants.synopsisFile}',
-          ref: ref,
         ),
-        _MiscTile(
+        _SidebarTile(
           label: 'Glossário',
+          icon: Icons.description_outlined,
           path: '$projectPath/${AppConstants.miscDir}/${AppConstants.glossaryFile}',
-          ref: ref,
         ),
-        _MiscTile(label: 'Notas', path: '$projectPath/${AppConstants.miscDir}/${AppConstants.notesDir}', ref: ref),
-        _MiscTile(label: 'Locais', path: '$projectPath/${AppConstants.miscDir}/${AppConstants.locationsDir}', ref: ref),
-        _MiscTile(label: 'Pesquisa', path: '$projectPath/${AppConstants.miscDir}/${AppConstants.researchDir}', ref: ref),
-        _MiscTile(label: 'Linha do tempo', path: '$projectPath/${AppConstants.miscDir}/${AppConstants.timelineDir}', ref: ref),
-        _MiscTile(label: 'Regras do mundo', path: '$projectPath/${AppConstants.miscDir}/${AppConstants.worldRulesDir}', ref: ref),
+        ...miscSections.map((s) => _MiscSectionTile(section: s)),
       ],
     );
   }
@@ -141,7 +157,9 @@ class _ProjectTree extends ConsumerWidget {
       context: context,
       builder: (_) => NewChapterDialog(projectPath: projectPath),
     );
-    if (result != null) ref.invalidate(activeProjectProvider);
+    // invalidar activeProjectProvider aqui resetaria o StateProvider para
+    // null e fecharia o projeto — o que se quer é recarregar a árvore.
+    if (result != null) ref.invalidate(projectTreeProvider(projectPath));
   }
 
   Future<void> _showNewCharacterDialog(BuildContext context, WidgetRef ref) async {
@@ -149,7 +167,7 @@ class _ProjectTree extends ConsumerWidget {
       context: context,
       builder: (_) => NewCharacterDialog(projectPath: projectPath),
     );
-    if (result != null) ref.invalidate(activeProjectProvider);
+    if (result != null) ref.invalidate(projectTreeProvider(projectPath));
   }
 }
 
@@ -181,31 +199,23 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _ChapterTile extends ConsumerWidget {
-  final Directory dir;
-  final WidgetRef ref;
-  const _ChapterTile({required this.dir, required this.ref});
+  final ChapterNode chapter;
+  const _ChapterTile({required this.chapter});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final name = dir.path.split('/').last;
-    final chapterFile = File('${dir.path}/${AppConstants.chapterFile}');
-    final scenes = dir.listSync().whereType<File>()
-        .where((f) => f.path.endsWith('.md') && !f.path.endsWith(AppConstants.chapterFile))
-        .toList();
-    final hasScenes = !chapterFile.existsSync() && scenes.isNotEmpty;
-
-    if (!hasScenes) {
+    if (!chapter.hasScenes) {
       return _SidebarTile(
-        label: name,
+        label: chapter.name,
         icon: Icons.article_outlined,
-        onTap: () => _openFile(ref, context, chapterFile.path),
+        path: chapter.chapterFilePath,
         indent: 1,
       );
     }
 
     return ExpansionTile(
       tilePadding: const EdgeInsets.only(left: 24, right: 8),
-      title: Text(name, style: Theme.of(context).textTheme.bodySmall),
+      title: Text(chapter.name, style: Theme.of(context).textTheme.bodySmall),
       leading: const Icon(Icons.menu_book_outlined, size: 16),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -215,63 +225,54 @@ class _ChapterTile extends ConsumerWidget {
             tooltip: 'Nova cena',
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
-            onPressed: () => showDialog(
-              context: context,
-              builder: (_) => NewSceneDialog(chapterPath: dir.path, chapterName: name),
-            ),
+            onPressed: () => _showNewSceneDialog(context, ref),
           ),
           const Icon(Icons.expand_more, size: 16),
         ],
       ),
       childrenPadding: EdgeInsets.zero,
-      children: scenes.map((f) {
-        final sceneName = f.path.split('/').last.replaceAll('.md', '');
+      children: chapter.scenes.map((scene) {
         return _SidebarTile(
-          label: sceneName,
+          label: scene.name,
           icon: Icons.short_text,
-          onTap: () => _openFile(ref, context, f.path),
+          path: scene.path,
           indent: 2,
         );
       }).toList(),
     );
   }
 
-  void _openFile(WidgetRef ref, BuildContext context, String path) {
-    ref.read(activeFileProvider.notifier).state = path;
-    context.go('/editor');
+  Future<void> _showNewSceneDialog(BuildContext context, WidgetRef ref) async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => NewSceneDialog(chapterPath: chapter.dirPath, chapterName: chapter.name),
+    );
+    if (result != null) ref.invalidate(projectTreeProvider);
   }
 }
 
 class _CharacterTile extends ConsumerWidget {
-  final Directory dir;
-  final WidgetRef ref;
-  const _CharacterTile({required this.dir, required this.ref});
+  final CharacterNode character;
+  const _CharacterTile({required this.character});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final name = dir.path.split('/').last;
     return ExpansionTile(
       tilePadding: const EdgeInsets.only(left: 24, right: 8),
-      title: Text(name, style: Theme.of(context).textTheme.bodySmall),
+      title: Text(character.name, style: Theme.of(context).textTheme.bodySmall),
       leading: const Icon(Icons.person_outline, size: 16),
       childrenPadding: EdgeInsets.zero,
       children: [
         _SidebarTile(
           label: 'Características',
           icon: Icons.list_alt_outlined,
-          onTap: () {
-            ref.read(activeFileProvider.notifier).state = '${dir.path}/characteristics.md';
-            context.go('/editor');
-          },
+          path: '${character.dirPath}/${AppConstants.characteristicsFile}',
           indent: 2,
         ),
         _SidebarTile(
           label: 'Evolução',
           icon: Icons.trending_up_outlined,
-          onTap: () {
-            ref.read(activeFileProvider.notifier).state = '${dir.path}/evolution.md';
-            context.go('/editor');
-          },
+          path: '${character.dirPath}/${AppConstants.evolutionFile}',
           indent: 2,
         ),
       ],
@@ -279,47 +280,109 @@ class _CharacterTile extends ConsumerWidget {
   }
 }
 
-class _MiscTile extends ConsumerWidget {
-  final String label;
-  final String path;
-  final WidgetRef ref;
-  const _MiscTile({required this.label, required this.path, required this.ref});
+class _MiscSectionTile extends ConsumerWidget {
+  final MiscSection section;
+  const _MiscSectionTile({required this.section});
+
+  static const _labels = {
+    AppConstants.notesDir: 'Notas',
+    AppConstants.locationsDir: 'Locais',
+    AppConstants.researchDir: 'Pesquisa',
+    AppConstants.timelineDir: 'Linha do tempo',
+    AppConstants.worldRulesDir: 'Regras do mundo',
+  };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return _SidebarTile(
-      label: label,
-      icon: Icons.folder_outlined,
-      onTap: () {
-        ref.read(activeFileProvider.notifier).state = path;
-        context.go('/editor');
-      },
-      indent: 1,
+    final label = _labels[section.dirName] ?? section.dirName;
+    return ExpansionTile(
+      tilePadding: const EdgeInsets.only(left: 24, right: 8),
+      title: Text(label, style: Theme.of(context).textTheme.bodySmall),
+      leading: const Icon(Icons.folder_outlined, size: 16),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.add, size: 14),
+            tooltip: 'Novo item',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            onPressed: () => _showNewFileDialog(context, ref, label),
+          ),
+          const Icon(Icons.expand_more, size: 16),
+        ],
+      ),
+      childrenPadding: EdgeInsets.zero,
+      children: section.files.isEmpty
+          ? [
+              Padding(
+                padding: const EdgeInsets.only(left: 32, top: 4, bottom: 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Vazio — use o + para criar',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.outline,
+                          )),
+                ),
+              ),
+            ]
+          : section.files
+              .map((f) => _SidebarTile(
+                    label: f.name,
+                    icon: Icons.short_text,
+                    path: f.path,
+                    indent: 2,
+                  ))
+              .toList(),
     );
+  }
+
+  Future<void> _showNewFileDialog(BuildContext context, WidgetRef ref, String label) async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => NewMarkdownFileDialog(dirPath: section.dirPath, sectionLabel: label),
+    );
+    if (result != null) ref.invalidate(projectTreeProvider);
   }
 }
 
-class _SidebarTile extends StatelessWidget {
+class _SidebarTile extends ConsumerWidget {
   final String label;
   final IconData icon;
-  final VoidCallback onTap;
+  final String path;
   final int indent;
-  const _SidebarTile({required this.label, required this.icon, required this.onTap, this.indent = 1});
+  const _SidebarTile({required this.label, required this.icon, required this.path, this.indent = 1});
 
   @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: EdgeInsets.only(left: 16.0 * indent, right: 8, top: 6, bottom: 6),
-        child: Row(
-          children: [
-            Icon(icon, size: 14),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(label, style: Theme.of(context).textTheme.bodySmall, overflow: TextOverflow.ellipsis),
-            ),
-          ],
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isActive = ref.watch(activeFileProvider) == path;
+    final colorScheme = Theme.of(context).colorScheme;
+    final baseStyle = Theme.of(context).textTheme.bodySmall;
+
+    return Material(
+      color: isActive ? colorScheme.primary.withValues(alpha: 0.10) : Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          ref.read(activeFileProvider.notifier).state = path;
+          context.go('/editor');
+        },
+        child: Padding(
+          padding: EdgeInsets.only(left: 16.0 * indent, right: 8, top: 6, bottom: 6),
+          child: Row(
+            children: [
+              Icon(icon, size: 14, color: isActive ? colorScheme.primary : null),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: isActive
+                      ? baseStyle?.copyWith(color: colorScheme.primary, fontWeight: FontWeight.w600)
+                      : baseStyle,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
