@@ -60,7 +60,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
   @override
   void dispose() {
-    _autosaveTimer?.cancel();
+    // Sair da tela do editor (ex.: trocar de projeto) desmonta este widget
+    // sem passar por _flushPendingSave nem _onExitRequested — sem isto,
+    // alterações não salvas eram descartadas silenciosamente.
+    final path = ref.read(activeFileProvider);
+    if (path != null) _flushPendingSave(path);
     _lifecycleListener.dispose();
     _transactionSub?.cancel();
     _editorState?.dispose();

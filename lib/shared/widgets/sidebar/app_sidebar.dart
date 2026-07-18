@@ -397,6 +397,11 @@ class _SidebarFooter extends ConsumerWidget {
       child: Row(
         children: [
           IconButton(
+            icon: const Icon(Icons.home_outlined, size: 18),
+            tooltip: 'Trocar de projeto',
+            onPressed: () => context.go('/'),
+          ),
+          IconButton(
             icon: const Icon(Icons.call_split, size: 18),
             tooltip: 'Branches',
             onPressed: () => showDialog(
