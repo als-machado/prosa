@@ -1,7 +1,14 @@
 import 'dart:async';
 import 'dart:ui' show AppExitResponse;
 import 'package:appflowy_editor/appflowy_editor.dart';
+// FindReplaceMenu não é exportado no barrel público do pacote — só é usado
+// internamente por find_replace_command.dart. Precisamos da classe
+// diretamente para guardar a referência e poder fechar o menu no Escape
+// (a biblioteca não tem esse comportamento embutido).
+// ignore: implementation_imports
+import 'package:appflowy_editor/src/editor/find_replace_menu/find_menu_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/editor_provider.dart';
@@ -52,10 +59,17 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   Timer? _autosaveTimer;
   late final AppLifecycleListener _lifecycleListener;
 
+  // A biblioteca não tem lógica própria de Escape para o menu de
+  // busca — ele mora num OverlayEntry separado do foco do editor, e o
+  // atalho padrão de Escape só limpa a seleção de texto, sem saber que o
+  // menu existe. Guardamos a referência para poder fechá-lo explicitamente.
+  FindReplaceMenu? _findReplaceMenu;
+
   @override
   void initState() {
     super.initState();
     _lifecycleListener = AppLifecycleListener(onExitRequested: _onExitRequested);
+    HardwareKeyboard.instance.addHandler(_handleGlobalEscape);
   }
 
   @override
@@ -65,6 +79,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     // alterações não salvas eram descartadas silenciosamente.
     final path = ref.read(activeFileProvider);
     if (path != null) _flushPendingSave(path);
+    _findReplaceMenu?.dismiss();
+    HardwareKeyboard.instance.removeHandler(_handleGlobalEscape);
     _lifecycleListener.dispose();
     _transactionSub?.cancel();
     _editorState?.dispose();
@@ -86,6 +102,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   void _loadIntoEditor(String content) {
     _autosaveTimer?.cancel();
     _transactionSub?.cancel();
+    _findReplaceMenu?.dismiss();
+    _findReplaceMenu = null;
     _editorState?.dispose();
 
     final newState = EditorState(document: markdownToDocument(content));
@@ -235,6 +253,20 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
           ...standardCommandShortcutEvents.where((e) => e.key != 'indent'),
           _buildTabInsertCommand(settings.editorTabSize),
           CommandShortcutEvent(
+            key: 'show the find dialog',
+            getDescription: () => 'Buscar no arquivo',
+            command: 'ctrl+f',
+            macOSCommand: 'cmd+f',
+            handler: (editorState) => _openFindReplace(editorState),
+          ),
+          CommandShortcutEvent(
+            key: 'show the find and replace dialog',
+            getDescription: () => 'Buscar e substituir no arquivo',
+            command: 'ctrl+h',
+            macOSCommand: 'cmd+h',
+            handler: (editorState) => _openFindReplace(editorState, showReplace: true),
+          ),
+          CommandShortcutEvent(
             key: 'save-file',
             getDescription: () => 'Salvar arquivo',
             command: 'ctrl+s',
@@ -378,6 +410,53 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   void _increaseFontSize() => _changeFontSize((s) => s + 1);
   void _decreaseFontSize() => _changeFontSize((s) => s - 1);
   void _resetFontSize() => _changeFontSize((_) => _defaultFontSize);
+
+  KeyEventResult _openFindReplace(EditorState editorState, {bool showReplace = false}) {
+    _findReplaceMenu?.dismiss();
+    final menu = FindReplaceMenu(
+      context: context,
+      editorState: editorState,
+      showReplaceMenu: showReplace,
+      style: FindReplaceStyle(),
+      localizations: FindReplaceLocalizations(
+        find: 'Buscar',
+        previousMatch: 'Anterior',
+        nextMatch: 'Próximo',
+        close: 'Fechar',
+        replace: 'Substituir',
+        replaceAll: 'Substituir tudo',
+        noResult: 'Nenhum resultado',
+      ),
+      showRegexButton: true,
+      showCaseSensitiveButton: true,
+    );
+    menu.show();
+    _findReplaceMenu = menu;
+    return KeyEventResult.handled;
+  }
+
+  /// Notificado a cada tecla física, independente de qual widget está com
+  /// foco — necessário porque o campo de busca (num Overlay separado)
+  /// captura o foco e tem seu próprio tratamento interno de Escape
+  /// (DismissIntent do TextField, usado para esconder a barra de seleção),
+  /// que intercepta o Escape antes que ele chegasse ao commandShortcutEvents
+  /// do editor.
+  bool _handleGlobalEscape(KeyEvent event) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape &&
+        _findReplaceMenu != null) {
+      final menu = _findReplaceMenu!;
+      _findReplaceMenu = null;
+      // O despacho desta mesma tecla ainda está em andamento (o próprio
+      // TextField do campo de busca também a processa, via seu
+      // DismissIntent interno). Remover o overlay agora, de forma síncrona,
+      // derrubaria a árvore de widgets no meio desse despacho. Uma
+      // microtask roda só depois que o despacho atual termina.
+      scheduleMicrotask(menu.dismiss);
+      return true;
+    }
+    return false;
+  }
 
   Future<void> _showPublishDialog() async {
     final project = ref.read(activeProjectProvider);
