@@ -10,6 +10,10 @@ class EditorToolbar extends StatefulWidget {
   final VoidCallback onPull;
   final VoidCallback onToggleFocus;
   final EditorState? editorState;
+  final double fontSize;
+  final VoidCallback? onIncreaseFontSize;
+  final VoidCallback? onDecreaseFontSize;
+  final VoidCallback? onResetFontSize;
 
   const EditorToolbar({
     super.key,
@@ -20,6 +24,10 @@ class EditorToolbar extends StatefulWidget {
     required this.onPull,
     required this.onToggleFocus,
     this.editorState,
+    this.fontSize = 16.0,
+    this.onIncreaseFontSize,
+    this.onDecreaseFontSize,
+    this.onResetFontSize,
   });
 
   @override
@@ -198,6 +206,13 @@ class _EditorToolbarState extends State<EditorToolbar> {
           _ToolbarButton(icon: Icons.cloud_upload_outlined, tooltip: 'Push', onPressed: widget.onPush),
           _ToolbarButton(icon: Icons.cloud_download_outlined, tooltip: 'Pull', onPressed: widget.onPull),
           const Spacer(),
+          _FontSizeStepper(
+            fontSize: widget.fontSize,
+            onDecrease: widget.onDecreaseFontSize,
+            onIncrease: widget.onIncreaseFontSize,
+            onReset: widget.onResetFontSize,
+          ),
+          const _Separator(),
           _ToolbarButton(
             icon: Icons.fullscreen,
             tooltip: 'Modo foco',
@@ -259,6 +274,64 @@ class _ToolbarButton extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// Ajusta o tamanho do texto exibido no editor inteiro (não formatação de
+/// um trecho) — pensado para adequar a tela ou compensar limitações de
+/// visão sem precisar entrar em Configurações.
+class _FontSizeStepper extends StatelessWidget {
+  final double fontSize;
+  final VoidCallback? onDecrease;
+  final VoidCallback? onIncrease;
+  final VoidCallback? onReset;
+
+  const _FontSizeStepper({
+    required this.fontSize,
+    this.onDecrease,
+    this.onIncrease,
+    this.onReset,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Tooltip(
+          message: 'Diminuir tamanho do texto (Ctrl+-)',
+          child: IconButton(
+            icon: const Icon(Icons.text_decrease, size: 18),
+            onPressed: onDecrease,
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+          ),
+        ),
+        Tooltip(
+          message: 'Restaurar tamanho padrão',
+          child: InkWell(
+            onTap: onReset,
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+              child: Text(
+                '${fontSize.round()}pt',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ),
+        ),
+        Tooltip(
+          message: 'Aumentar tamanho do texto (Ctrl+=)',
+          child: IconButton(
+            icon: const Icon(Icons.text_increase, size: 18),
+            onPressed: onIncrease,
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+          ),
+        ),
+      ],
     );
   }
 }

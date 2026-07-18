@@ -43,6 +43,9 @@ class EditorScreen extends ConsumerStatefulWidget {
 
 class _EditorScreenState extends ConsumerState<EditorScreen> {
   static const _autosaveDelay = Duration(seconds: 3);
+  static const _minFontSize = 10.0;
+  static const _maxFontSize = 32.0;
+  static const _defaultFontSize = 16.0;
 
   EditorState? _editorState;
   StreamSubscription? _transactionSub;
@@ -143,6 +146,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                     onPull: () => _pull(),
                     onToggleFocus: () => ref.read(focusModeProvider.notifier).state = true,
                     editorState: _editorState,
+                    fontSize: settings.editorFontSize,
+                    onIncreaseFontSize: settings.editorFontSize < _maxFontSize ? _increaseFontSize : null,
+                    onDecreaseFontSize: settings.editorFontSize > _minFontSize ? _decreaseFontSize : null,
+                    onResetFontSize: _resetFontSize,
                   ),
                 Expanded(
                   child: activeFile == null
@@ -208,6 +215,33 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
             command: 'ctrl+s',
             handler: (_) {
               _save(activeFile);
+              return KeyEventResult.handled;
+            },
+          ),
+          CommandShortcutEvent(
+            key: 'increase-font-size',
+            getDescription: () => 'Aumentar tamanho do texto',
+            command: 'ctrl+equal',
+            handler: (_) {
+              _increaseFontSize();
+              return KeyEventResult.handled;
+            },
+          ),
+          CommandShortcutEvent(
+            key: 'decrease-font-size',
+            getDescription: () => 'Diminuir tamanho do texto',
+            command: 'ctrl+minus',
+            handler: (_) {
+              _decreaseFontSize();
+              return KeyEventResult.handled;
+            },
+          ),
+          CommandShortcutEvent(
+            key: 'reset-font-size',
+            getDescription: () => 'Restaurar tamanho padrão do texto',
+            command: 'ctrl+digit 0',
+            handler: (_) {
+              _resetFontSize();
               return KeyEventResult.handled;
             },
           ),
@@ -301,6 +335,20 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro no pull: $e')));
     }
   }
+
+  /// Tamanho do texto é uma preferência de exibição do editor inteiro, não
+  /// formatação de um trecho — por isso vive em AppSettings (persistida e
+  /// compartilhada entre arquivos), não no EditorState do documento aberto.
+  Future<void> _changeFontSize(double Function(double current) transform) async {
+    final settings = ref.read(settingsProvider).valueOrNull;
+    if (settings == null) return;
+    final next = transform(settings.editorFontSize).clamp(_minFontSize, _maxFontSize);
+    await ref.read(settingsProvider.notifier).save(settings.copyWith(editorFontSize: next));
+  }
+
+  void _increaseFontSize() => _changeFontSize((s) => s + 1);
+  void _decreaseFontSize() => _changeFontSize((s) => s - 1);
+  void _resetFontSize() => _changeFontSize((_) => _defaultFontSize);
 
   Future<void> _showPublishDialog() async {
     final project = ref.read(activeProjectProvider);
