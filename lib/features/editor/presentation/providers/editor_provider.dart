@@ -8,40 +8,29 @@ final fileContentProvider = FutureProvider<String>((ref) async {
   final path = ref.watch(activeFileProvider);
   if (path == null) return '';
   final file = File(path);
-  if (!file.existsSync()) return '';
+  if (!await file.exists()) return '';
   return file.readAsString();
 });
 
-class EditorDocumentState {
-  final String content;
-  final bool isDirty;
-
-  const EditorDocumentState({this.content = '', this.isDirty = false});
-
-  EditorDocumentState copyWith({String? content, bool? isDirty}) => EditorDocumentState(
-        content: content ?? this.content,
-        isDirty: isDirty ?? this.isDirty,
-      );
-}
-
-class EditorNotifier extends Notifier<EditorDocumentState> {
+/// Guarda apenas a flag de alterações pendentes. O conteúdo vive no
+/// EditorState do AppFlowy e só é serializado para Markdown no momento
+/// do save — serializar a cada tecla custa O(documento) por caractere.
+class EditorNotifier extends Notifier<bool> {
   @override
-  EditorDocumentState build() => const EditorDocumentState();
+  bool build() => false;
 
-  void updateContent(String content) {
-    state = state.copyWith(content: content, isDirty: true);
+  void markDirty() {
+    if (!state) state = true;
   }
 
-  Future<void> saveToFile(String path) async {
-    await File(path).writeAsString(state.content);
-    state = state.copyWith(isDirty: false);
-  }
+  void reset() => state = false;
 
-  void loadContent(String content) {
-    state = EditorDocumentState(content: content, isDirty: false);
+  Future<void> saveToFile(String path, String content) async {
+    await File(path).writeAsString(content);
+    state = false;
   }
 }
 
-final editorNotifierProvider = NotifierProvider<EditorNotifier, EditorDocumentState>(
+final editorNotifierProvider = NotifierProvider<EditorNotifier, bool>(
   EditorNotifier.new,
 );

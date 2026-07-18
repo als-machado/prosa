@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show AppExitResponse;
 import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import '../widgets/publish_dialog.dart';
 import '../../../../shared/widgets/sidebar/app_sidebar.dart';
 import '../../../../features/git/presentation/providers/git_provider.dart';
 import '../../../../features/projects/presentation/providers/projects_provider.dart';
+import '../../../../features/projects/presentation/providers/project_tree_provider.dart';
 import '../../../../features/settings/presentation/providers/settings_provider.dart';
 import '../../../../features/settings/domain/models/app_settings.dart';
 
@@ -40,28 +42,75 @@ class EditorScreen extends ConsumerStatefulWidget {
 }
 
 class _EditorScreenState extends ConsumerState<EditorScreen> {
+  static const _autosaveDelay = Duration(seconds: 3);
+
   EditorState? _editorState;
   StreamSubscription? _transactionSub;
+  Timer? _autosaveTimer;
+  late final AppLifecycleListener _lifecycleListener;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycleListener = AppLifecycleListener(onExitRequested: _onExitRequested);
+  }
 
   @override
   void dispose() {
+    _autosaveTimer?.cancel();
+    _lifecycleListener.dispose();
     _transactionSub?.cancel();
     _editorState?.dispose();
     super.dispose();
   }
 
+  /// Fechar a janela com alterações pendentes salva antes de sair.
+  Future<AppExitResponse> _onExitRequested() async {
+    final path = ref.read(activeFileProvider);
+    final state = _editorState;
+    if (path != null && state != null && ref.read(editorNotifierProvider)) {
+      await ref
+          .read(editorNotifierProvider.notifier)
+          .saveToFile(path, documentToMarkdown(state.document));
+    }
+    return AppExitResponse.exit;
+  }
+
   void _loadIntoEditor(String content) {
+    _autosaveTimer?.cancel();
     _transactionSub?.cancel();
     _editorState?.dispose();
 
     final newState = EditorState(document: markdownToDocument(content));
     _transactionSub = newState.transactionStream.listen((_) {
-      final markdown = documentToMarkdown(newState.document);
-      ref.read(editorNotifierProvider.notifier).updateContent(markdown);
+      ref.read(editorNotifierProvider.notifier).markDirty();
+      _scheduleAutosave();
     });
 
     setState(() => _editorState = newState);
-    ref.read(editorNotifierProvider.notifier).loadContent(content);
+    ref.read(editorNotifierProvider.notifier).reset();
+  }
+
+  void _scheduleAutosave() {
+    _autosaveTimer?.cancel();
+    _autosaveTimer = Timer(_autosaveDelay, () {
+      final path = ref.read(activeFileProvider);
+      if (path != null && ref.read(editorNotifierProvider)) {
+        _save(path, notify: false);
+      }
+    });
+  }
+
+  /// Ao trocar de arquivo, persiste as alterações pendentes do arquivo
+  /// anterior antes que o novo conteúdo substitua o editor.
+  void _flushPendingSave(String previousPath) {
+    _autosaveTimer?.cancel();
+    final state = _editorState;
+    if (state == null || !ref.read(editorNotifierProvider)) return;
+    final markdown = documentToMarkdown(state.document);
+    unawaited(
+      ref.read(editorNotifierProvider.notifier).saveToFile(previousPath, markdown),
+    );
   }
 
   @override
@@ -69,8 +118,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     final focusMode = ref.watch(focusModeProvider);
     final settings = ref.watch(settingsProvider).valueOrNull ?? const AppSettings();
     final activeFile = ref.watch(activeFileProvider);
-    final editorDocState = ref.watch(editorNotifierProvider);
+    final isDirty = ref.watch(editorNotifierProvider);
 
+    ref.listen(activeFileProvider, (prev, next) {
+      if (prev != null && prev != next) _flushPendingSave(prev);
+    });
     ref.listen(fileContentProvider, (_, next) {
       next.whenData((content) => _loadIntoEditor(content));
     });
@@ -84,7 +136,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
               children: [
                 if (!focusMode)
                   EditorToolbar(
-                    isDirty: editorDocState.isDirty,
+                    isDirty: isDirty,
                     onSave: activeFile != null ? () => _save(activeFile) : null,
                     onCommit: () => _showCommitDialog(),
                     onPush: () => _push(),
@@ -99,7 +151,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                 ),
                 if (focusMode)
                   _FocusBar(
-                    isDirty: editorDocState.isDirty,
+                    isDirty: isDirty,
                     onSave: activeFile != null ? () => _save(activeFile) : null,
                     onExit: () => ref.read(focusModeProvider.notifier).state = false,
                   ),
@@ -178,9 +230,20 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     );
   }
 
-  Future<void> _save(String path) async {
-    await ref.read(editorNotifierProvider.notifier).saveToFile(path);
-    if (mounted) {
+  Future<void> _save(String path, {bool notify = true}) async {
+    final state = _editorState;
+    if (state == null) return;
+    _autosaveTimer?.cancel();
+    final markdown = documentToMarkdown(state.document);
+    try {
+      await ref.read(editorNotifierProvider.notifier).saveToFile(path, markdown);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e')));
+      }
+      return;
+    }
+    if (notify && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Salvo'), duration: Duration(seconds: 1)));
     }
   }
@@ -194,10 +257,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     );
     if (msg == null || msg.isEmpty) return;
     final git = ref.read(gitServiceProvider);
-    await git.add(project.localPath);
-    await git.commit(project.localPath, msg);
-    ref.invalidate(commitLogProvider);
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Commit criado')));
+    try {
+      await git.add(project.localPath);
+      await git.commit(project.localPath, msg);
+      ref.invalidate(commitLogProvider);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Commit criado')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro no commit: $e')));
+    }
   }
 
   Future<void> _push() async {
@@ -226,6 +293,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     final git = ref.read(gitServiceProvider);
     try {
       await git.pull(project.localPath, sshKeyPath: sshKeyPath);
+      // O pull pode ter alterado a árvore e o arquivo aberto.
+      ref.invalidate(projectTreeProvider);
+      ref.invalidate(fileContentProvider);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pull realizado')));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro no pull: $e')));
