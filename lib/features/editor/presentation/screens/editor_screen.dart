@@ -179,6 +179,19 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     }
   }
 
+  /// Sem textStyleBuilder, o HeadingBlockComponentBuilder usa tamanhos fixos
+  /// (32/28/24/18pt) para os títulos, desconectados do tamanho de texto
+  /// escolhido pelo usuário. Escala esses mesmos tamanhos-base na mesma
+  /// proporção do corpo do texto, preservando a hierarquia visual entre
+  /// título, subtítulo e parágrafo.
+  TextStyle _headingTextStyle(int level, double bodyFontSize) {
+    const defaultBodyFontSize = 16.0;
+    const baseSizes = [32.0, 28.0, 24.0, 18.0, 18.0, 18.0];
+    final base = level >= 0 && level < baseSizes.length ? baseSizes[level] : 18.0;
+    final scale = bodyFontSize / defaultBodyFontSize;
+    return TextStyle(fontSize: base * scale, fontWeight: FontWeight.bold);
+  }
+
   Widget _buildEditor(AppSettings settings, String activeFile) {
     final editorState = _editorState;
     if (editorState == null) return const SizedBox.shrink();
@@ -191,21 +204,29 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       placeholderText: (_) => '',
     );
 
+    final blockComponentBuilders = {
+      ...standardBlockComponentBuilderMap,
+      ParagraphBlockKeys.type: ParagraphBlockComponentBuilder(
+        configuration: prosaBlockConfig,
+      ),
+      HeadingBlockKeys.type: HeadingBlockComponentBuilder(
+        configuration: prosaBlockConfig,
+        textStyleBuilder: (level) => _headingTextStyle(level, settings.editorFontSize),
+      ),
+    };
+    // AppFlowyEditor só reaplica blockComponentBuilders a editorState.renderer
+    // quando editorState.service muda (troca de arquivo) — não a cada rebuild
+    // do widget. Sem isto, o tamanho do título ficava "congelado" no valor de
+    // quando o arquivo foi aberto, ignorando mudanças de editorFontSize.
+    editorState.renderer = BlockComponentRenderer(builders: blockComponentBuilders);
+
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: AppFlowyEditor(
         editorState: editorState,
         header: const SizedBox(height: 32),
         footer: const SizedBox(height: 32),
-        blockComponentBuilders: {
-          ...standardBlockComponentBuilderMap,
-          ParagraphBlockKeys.type: ParagraphBlockComponentBuilder(
-            configuration: prosaBlockConfig,
-          ),
-          HeadingBlockKeys.type: HeadingBlockComponentBuilder(
-            configuration: prosaBlockConfig,
-          ),
-        },
+        blockComponentBuilders: blockComponentBuilders,
         commandShortcutEvents: [
           ...standardCommandShortcutEvents.where((e) => e.key != 'indent'),
           _buildTabInsertCommand(settings.editorTabSize),
