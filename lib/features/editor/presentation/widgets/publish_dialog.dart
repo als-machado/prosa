@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../shared/models/prosa_project.dart';
+import '../../../git/data/git_api_service.dart';
 import '../../../git/presentation/providers/git_provider.dart';
 import '../../../git/presentation/providers/git_api_provider.dart';
+import '../../../settings/domain/models/app_settings.dart';
 import '../../../settings/presentation/providers/settings_provider.dart';
 
 class PublishDialog extends ConsumerStatefulWidget {
@@ -38,8 +40,13 @@ class _PublishDialogState extends ConsumerState<PublishDialog> {
   Future<void> _publish() async {
     final settings = ref.read(settingsProvider).valueOrNull;
     final token = settings?.gitToken;
+    final provider = settings?.gitProvider;
     if (token == null || token.isEmpty) {
       setState(() => _error = 'Configure o token Git em Configurações antes de publicar.');
+      return;
+    }
+    if (provider == null) {
+      setState(() => _error = 'Configure o servidor Git em Configurações antes de publicar.');
       return;
     }
 
@@ -47,13 +54,24 @@ class _PublishDialogState extends ConsumerState<PublishDialog> {
 
     try {
       final api = ref.read(gitApiServiceProvider);
-      final repo = await api.createGithubRepo(
-        token,
-        _nameCtrl.text.trim(),
-        description: widget.project.title,
-        private: _private,
-      );
-      if (repo == null) throw Exception('Falha ao criar repositório');
+      final RemoteRepo repo;
+      if (provider.host == 'github.com') {
+        repo = await api.createGithubRepo(
+          token,
+          _nameCtrl.text.trim(),
+          description: widget.project.title,
+          private: _private,
+        );
+      } else {
+        // GitLab.com e servidores personalizados (API compatível).
+        repo = await api.createGitlabRepo(
+          token,
+          _nameCtrl.text.trim(),
+          description: widget.project.title,
+          private: _private,
+          apiBase: provider.apiBase,
+        );
+      }
 
       final git = ref.read(gitServiceProvider);
       final sshKeyPath = await ref.read(sshKeyPathProvider.future);
@@ -80,11 +98,12 @@ class _PublishDialogState extends ConsumerState<PublishDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = ref.watch(settingsProvider).valueOrNull;
-    final hasToken = settings?.gitToken?.isNotEmpty == true;
+    final settings = ref.watch(settingsProvider).valueOrNull ?? const AppSettings();
+    final hasToken = settings.gitToken?.isNotEmpty == true;
+    final providerName = settings.gitProvider?.name ?? 'GitHub';
 
     return AlertDialog(
-      title: const Text('Publicar no GitHub'),
+      title: Text('Publicar no $providerName'),
       content: SizedBox(
         width: 400,
         child: Column(
