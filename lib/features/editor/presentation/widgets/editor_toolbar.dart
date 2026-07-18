@@ -1,7 +1,8 @@
+import 'dart:async';
 import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:flutter/material.dart';
 
-class EditorToolbar extends StatelessWidget {
+class EditorToolbar extends StatefulWidget {
   final bool isDirty;
   final VoidCallback? onSave;
   final VoidCallback onCommit;
@@ -21,14 +22,95 @@ class EditorToolbar extends StatelessWidget {
     this.editorState,
   });
 
+  @override
+  State<EditorToolbar> createState() => _EditorToolbarState();
+}
+
+class _EditorToolbarState extends State<EditorToolbar> {
+  StreamSubscription<EditorTransactionValue>? _transactionSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _attachListeners();
+  }
+
+  @override
+  void didUpdateWidget(covariant EditorToolbar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.editorState != widget.editorState) {
+      _detachListeners(oldWidget.editorState);
+      _attachListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _detachListeners(widget.editorState);
+    super.dispose();
+  }
+
+  // O estado "ativo" de negrito/itálico depende da seleção atual e do
+  // toggledStyle (estilo pendente com o cursor colapsado) — nenhum dos
+  // dois é um Listenable único, então escutamos os três sinais que podem
+  // mudar o resultado: seleção, toggledStyle e qualquer transação (o
+  // conteúdo sob a mesma seleção pode mudar sem a seleção em si mudar).
+  void _attachListeners() {
+    final state = widget.editorState;
+    if (state == null) return;
+    state.selectionNotifier.addListener(_onEditorChanged);
+    state.toggledStyleNotifier.addListener(_onEditorChanged);
+    _transactionSub = state.transactionStream.listen((_) => _onEditorChanged());
+  }
+
+  void _detachListeners(EditorState? state) {
+    state?.selectionNotifier.removeListener(_onEditorChanged);
+    state?.toggledStyleNotifier.removeListener(_onEditorChanged);
+    _transactionSub?.cancel();
+    _transactionSub = null;
+  }
+
+  void _onEditorChanged() {
+    if (mounted) setState(() {});
+  }
+
   void _toggleInline(String attribute) {
-    final state = editorState;
+    final state = widget.editorState;
     if (state == null) return;
     state.toggleAttribute(attribute);
   }
 
+  bool _isAttributeActive(String key) {
+    final state = widget.editorState;
+    if (state == null) return false;
+    final selection = state.selection;
+    if (selection == null) return false;
+
+    if (selection.isCollapsed) {
+      if (state.toggledStyle.containsKey(key)) {
+        return state.toggledStyle[key] == true;
+      }
+      final nodes = state.getNodesInSelection(selection);
+      final lookBehind = selection.copyWith(
+        start: selection.start.copyWith(
+          offset: (selection.startIndex - 1).clamp(0, selection.startIndex),
+        ),
+      );
+      return nodes.allSatisfyInSelection(
+        lookBehind,
+        (delta) => delta.everyAttributes((attr) => attr[key] == true),
+      );
+    }
+
+    final nodes = state.getNodesInSelection(selection);
+    return nodes.allSatisfyInSelection(
+      selection,
+      (delta) => delta.isNotEmpty && delta.everyAttributes((attr) => attr[key] == true),
+    );
+  }
+
   void _applyHeading(int level) {
-    final state = editorState;
+    final state = widget.editorState;
     if (state == null) return;
     final selection = state.selection;
     if (selection == null) return;
@@ -51,8 +133,19 @@ class EditorToolbar extends StatelessWidget {
     );
   }
 
+  bool _isHeadingActive(int level) {
+    final state = widget.editorState;
+    if (state == null) return false;
+    final selection = state.selection;
+    if (selection == null) return false;
+    final node = state.getNodeAtPath(selection.start.path);
+    if (node == null) return false;
+    return node.type == HeadingBlockKeys.type && node.attributes[HeadingBlockKeys.level] == level;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final editorState = widget.editorState;
     return Container(
       height: 48,
       decoration: BoxDecoration(
@@ -65,45 +158,50 @@ class EditorToolbar extends StatelessWidget {
           _ToolbarButton(
             icon: Icons.save_outlined,
             tooltip: 'Salvar (Ctrl+S)',
-            onPressed: isDirty ? onSave : null,
-            badge: isDirty,
+            onPressed: widget.isDirty ? widget.onSave : null,
+            badge: widget.isDirty,
           ),
           const _Separator(),
           _ToolbarButton(
             icon: Icons.format_bold,
             tooltip: 'Negrito (Ctrl+B)',
             onPressed: editorState != null ? () => _toggleInline(AppFlowyRichTextKeys.bold) : null,
+            isActive: _isAttributeActive(AppFlowyRichTextKeys.bold),
           ),
           _ToolbarButton(
             icon: Icons.format_italic,
             tooltip: 'Itálico (Ctrl+I)',
             onPressed: editorState != null ? () => _toggleInline(AppFlowyRichTextKeys.italic) : null,
+            isActive: _isAttributeActive(AppFlowyRichTextKeys.italic),
           ),
           _ToolbarButton(
             icon: Icons.format_strikethrough,
             tooltip: 'Tachado',
             onPressed: editorState != null ? () => _toggleInline(AppFlowyRichTextKeys.strikethrough) : null,
+            isActive: _isAttributeActive(AppFlowyRichTextKeys.strikethrough),
           ),
           const _Separator(),
           _ToolbarButton(
             icon: Icons.title,
             tooltip: 'Título H1',
             onPressed: editorState != null ? () => _applyHeading(1) : null,
+            isActive: _isHeadingActive(1),
           ),
           _ToolbarButton(
             icon: Icons.format_size,
             tooltip: 'Subtítulo H2',
             onPressed: editorState != null ? () => _applyHeading(2) : null,
+            isActive: _isHeadingActive(2),
           ),
           const _Separator(),
-          _ToolbarButton(icon: Icons.commit, tooltip: 'Commit', onPressed: onCommit),
-          _ToolbarButton(icon: Icons.cloud_upload_outlined, tooltip: 'Push', onPressed: onPush),
-          _ToolbarButton(icon: Icons.cloud_download_outlined, tooltip: 'Pull', onPressed: onPull),
+          _ToolbarButton(icon: Icons.commit, tooltip: 'Commit', onPressed: widget.onCommit),
+          _ToolbarButton(icon: Icons.cloud_upload_outlined, tooltip: 'Push', onPressed: widget.onPush),
+          _ToolbarButton(icon: Icons.cloud_download_outlined, tooltip: 'Pull', onPressed: widget.onPull),
           const Spacer(),
           _ToolbarButton(
             icon: Icons.fullscreen,
             tooltip: 'Modo foco',
-            onPressed: onToggleFocus,
+            onPressed: widget.onToggleFocus,
           ),
         ],
       ),
@@ -116,26 +214,35 @@ class _ToolbarButton extends StatelessWidget {
   final String tooltip;
   final VoidCallback? onPressed;
   final bool badge;
+  final bool isActive;
 
   const _ToolbarButton({
     required this.icon,
     required this.tooltip,
     this.onPressed,
     this.badge = false,
+    this.isActive = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Tooltip(
       message: tooltip,
       child: Stack(
         alignment: Alignment.topRight,
         children: [
-          IconButton(
-            icon: Icon(icon, size: 18),
-            onPressed: onPressed,
-            padding: const EdgeInsets.all(8),
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+          Container(
+            decoration: BoxDecoration(
+              color: isActive ? colorScheme.primary.withValues(alpha: 0.22) : null,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: IconButton(
+              icon: Icon(icon, size: 18, color: isActive ? colorScheme.primary : null),
+              onPressed: onPressed,
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            ),
           ),
           if (badge)
             Positioned(
@@ -145,7 +252,7 @@ class _ToolbarButton extends StatelessWidget {
                 width: 6,
                 height: 6,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary,
+                  color: colorScheme.primary,
                   shape: BoxShape.circle,
                 ),
               ),
