@@ -1,15 +1,41 @@
 import 'dart:io';
 
+class GitException implements Exception {
+  final String command;
+  final String message;
+  const GitException(this.command, this.message);
+
+  @override
+  String toString() => 'git $command: $message';
+}
+
 class GitService {
+  Map<String, String>? _sshEnv(String? sshKeyPath) => sshKeyPath != null
+      ? {
+          'GIT_SSH_COMMAND':
+              'ssh -i "$sshKeyPath" -o StrictHostKeyChecking=accept-new -o BatchMode=yes'
+        }
+      : null;
+
+  /// Roda git e lança [GitException] em exit code != 0 — falhas de
+  /// commit/checkout silenciosas deixavam a UI reportar sucesso falso.
   Future<ProcessResult> _run(
     List<String> args, {
     String? workingDir,
     String? sshKeyPath,
   }) async {
-    final env = sshKeyPath != null
-        ? {'GIT_SSH_COMMAND': 'ssh -i $sshKeyPath -o StrictHostKeyChecking=no -o BatchMode=yes'}
-        : null;
-    return Process.run('git', args, workingDirectory: workingDir, environment: env);
+    final r = await Process.run(
+      'git',
+      args,
+      workingDirectory: workingDir,
+      environment: _sshEnv(sshKeyPath),
+    );
+    if (r.exitCode != 0) {
+      final stderr = (r.stderr as String).trim();
+      final stdout = (r.stdout as String).trim();
+      throw GitException(args.first, stderr.isNotEmpty ? stderr : stdout);
+    }
+    return r;
   }
 
   Future<void> init(String dir) async {
@@ -40,13 +66,11 @@ class GitService {
     args.add(remote);
     if (branch != null) args.add(branch);
     final r = await _run(args, workingDir: repoPath, sshKeyPath: sshKeyPath);
-    if (r.exitCode != 0) throw Exception(r.stderr as String);
     return r.stdout as String;
   }
 
   Future<void> pull(String repoPath, {String remote = 'origin', String? sshKeyPath}) async {
-    final r = await _run(['pull', remote], workingDir: repoPath, sshKeyPath: sshKeyPath);
-    if (r.exitCode != 0) throw Exception(r.stderr as String);
+    await _run(['pull', remote], workingDir: repoPath, sshKeyPath: sshKeyPath);
   }
 
   Future<List<String>> branches(String repoPath) async {
@@ -73,10 +97,14 @@ class GitService {
 
   Future<List<CommitEntry>> log(String repoPath) async {
     const sep = '|PROSA|';
-    final r = await _run(
+    // Repositório sem commits faz `git log` sair com 128 — lista vazia é a
+    // resposta correta, não um erro.
+    final r = await Process.run(
+      'git',
       ['log', '--format=%H$sep%s$sep%an$sep%ai'],
-      workingDir: repoPath,
+      workingDirectory: repoPath,
     );
+    if (r.exitCode != 0) return [];
     return (r.stdout as String)
         .split('\n')
         .where((l) => l.isNotEmpty)
@@ -102,11 +130,14 @@ class GitService {
   }
 
   Future<void> clone(String url, String destination, {String? sshKeyPath}) async {
-    final env = sshKeyPath != null
-        ? {'GIT_SSH_COMMAND': 'ssh -i $sshKeyPath -o StrictHostKeyChecking=no -o BatchMode=yes'}
-        : null;
-    final r = await Process.run('git', ['clone', url, destination], environment: env);
-    if (r.exitCode != 0) throw Exception(r.stderr as String);
+    final r = await Process.run(
+      'git',
+      ['clone', url, destination],
+      environment: _sshEnv(sshKeyPath),
+    );
+    if (r.exitCode != 0) {
+      throw GitException('clone', (r.stderr as String).trim());
+    }
   }
 }
 

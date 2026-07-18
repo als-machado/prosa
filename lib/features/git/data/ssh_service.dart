@@ -62,8 +62,11 @@ class SshService {
   Future<void> importPrivateKey(String content) async {
     final path = await privateKeyPath;
     final file = File(path);
-    await file.writeAsString(content);
+    // Cria vazio e restringe permissões ANTES de escrever a chave — escrever
+    // primeiro deixaria o conteúdo legível (0644) até o chmod rodar.
+    await file.writeAsString('');
     await Process.run('chmod', ['600', path]);
+    await file.writeAsString(content);
   }
 
   Future<bool> testConnection(String host, String user) async {
