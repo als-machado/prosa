@@ -17,10 +17,34 @@ Feature-first clean architecture em `lib/`:
 - `features/<feature>/{data,domain,presentation}` — cada feature isolada
 - `shared/` — widgets e modelos compartilhados
 
+## Verificação ortográfica
+Feature em `lib/features/spellcheck/`. Idioma vem de `spellcheckLanguage` nas
+configurações e, na falta dele, do campo `language` do `.prosa`.
+
+O dicionário é um **filtro de Bloom** por idioma em `assets/dictionaries/`
+(pt_BR 6,4 MB, en_US 0,3 MB), gerado por `scripts/build_dictionaries.py` a
+partir dos Hunspell do LibreOffice — o pt_BR expandido tem 10,5 milhões de
+formas, que como lista não caberiam em memória. Palavra correta nunca é
+sublinhada; 1 erro em 10.000 passa batido. Junto vai um modelo de 4-gramas
+(~200 KB) que descarta sugestão inventada por falso positivo do filtro.
+
+Para regerar (precisa de rede, ~50 s):
+```
+python3 scripts/build_dictionaries.py --force
+```
+O hash (MurmurHash3 x86_32) e a normalização de palavras estão duplicados
+entre o script Python e `data/bloom_dictionary.dart`: mudar um lado sem o
+outro transforma o dicionário em ruído.
+
+A marcação **nunca** entra no delta do documento — o sublinhado é feito no
+`textSpanDecorator` do `EditorStyle`, senão sujaria o Markdown salvo, o
+desfazer e o autosave.
+
 ## Estrutura de projeto Prosa (no disco)
 ```
 <projeto>/
 ├── .prosa          # YAML com metadados
+├── .prosa_dictionary  # palavras aprendidas (versionado no Git)
 ├── chapters/
 │   └── 1 - Título/ # ou só "1/"
 │       ├── chapter.md      # sem cenas
@@ -45,6 +69,8 @@ SDK instalado em `/home/andre/flutter`. PATH configurado em `~/.bashrc`.
 Para rodar: `flutter run -d linux`
 
 ## Pendente (próximos passos)
+- Verificação ortográfica: painel de revisão do capítulo inteiro; pt_PT e
+  es_ES; gramática
 - Formatação Markdown no editor (negrito/itálico via toolbar)
 - Listagem de repositórios remotos via API do GitHub/GitLab
 - Clone de projetos remotos ao abrir pela tela Home

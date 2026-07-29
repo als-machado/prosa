@@ -60,6 +60,12 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icon/icon.png
+    # Dicionários da verificação ortográfica (filtros de Bloom gerados por
+    # scripts/build_dictionaries.py). Ver assets/dictionaries/LICENSES.md.
+    - assets/dictionaries/pt_BR.bloom
+    - assets/dictionaries/pt_BR.ngram.bloom
+    - assets/dictionaries/en_US.bloom
+    - assets/dictionaries/en_US.ngram.bloom
 
 flutter_launcher_icons:
   image_path: "assets/icon/icon.png"

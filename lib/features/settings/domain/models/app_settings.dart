@@ -40,6 +40,12 @@ class AppSettings {
   final double editorFontSize;
   final int editorTabSize;
   final double editorMarginHorizontal;
+  final bool spellcheckEnabled;
+
+  /// Idioma da verificação ortográfica escolhido pelo usuário. Null significa
+  /// "usar o idioma do projeto", que é o campo `language` do `.prosa`.
+  final String? spellcheckLanguage;
+
   final GitProvider? gitProvider;
   final String? gitUsername;
   final String? gitToken;
@@ -51,11 +57,18 @@ class AppSettings {
     this.editorFontSize = 16.0,
     this.editorTabSize = 4,
     this.editorMarginHorizontal = 80.0,
+    this.spellcheckEnabled = true,
+    this.spellcheckLanguage,
     this.gitProvider,
     this.gitUsername,
     this.gitToken,
     this.localProjectsPath,
   });
+
+  /// Sentinela para distinguir "não mexer neste campo" de "voltar para null".
+  /// Sem ela, o `??` do copyWith não conseguiria devolver spellcheckLanguage
+  /// ao padrão (seguir o idioma do projeto).
+  static const _keep = Object();
 
   AppSettings copyWith({
     bool? darkMode,
@@ -63,6 +76,8 @@ class AppSettings {
     double? editorFontSize,
     int? editorTabSize,
     double? editorMarginHorizontal,
+    bool? spellcheckEnabled,
+    Object? spellcheckLanguage = _keep,
     GitProvider? gitProvider,
     String? gitUsername,
     String? gitToken,
@@ -74,6 +89,10 @@ class AppSettings {
         editorFontSize: editorFontSize ?? this.editorFontSize,
         editorTabSize: editorTabSize ?? this.editorTabSize,
         editorMarginHorizontal: editorMarginHorizontal ?? this.editorMarginHorizontal,
+        spellcheckEnabled: spellcheckEnabled ?? this.spellcheckEnabled,
+        spellcheckLanguage: spellcheckLanguage == _keep
+            ? this.spellcheckLanguage
+            : spellcheckLanguage as String?,
         gitProvider: gitProvider ?? this.gitProvider,
         gitUsername: gitUsername ?? this.gitUsername,
         gitToken: gitToken ?? this.gitToken,
@@ -89,6 +108,8 @@ class AppSettings {
         'editorFontSize': editorFontSize,
         'editorTabSize': editorTabSize,
         'editorMarginHorizontal': editorMarginHorizontal,
+        'spellcheckEnabled': spellcheckEnabled,
+        'spellcheckLanguage': spellcheckLanguage,
         'gitProviderHost': gitProvider?.host,
         'gitProviderName': gitProvider?.name,
         'gitProviderApiBase': gitProvider?.apiBase,
@@ -119,6 +140,8 @@ class AppSettings {
       editorFontSize: (m['editorFontSize'] as num?)?.toDouble() ?? 16.0,
       editorTabSize: (m['editorTabSize'] as num?)?.toInt() ?? 4,
       editorMarginHorizontal: (m['editorMarginHorizontal'] as num?)?.toDouble() ?? 80.0,
+      spellcheckEnabled: m['spellcheckEnabled'] as bool? ?? true,
+      spellcheckLanguage: m['spellcheckLanguage'] as String?,
       gitProvider: provider,
       gitUsername: m['gitUsername'] as String?,
       gitToken: m['gitToken'] as String?,

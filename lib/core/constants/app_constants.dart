@@ -4,6 +4,11 @@ class AppConstants {
   static const String appName = 'Prosa';
   static const String appVersion = '0.1.0';
   static const String prosaFileName = '.prosa';
+
+  /// Palavras aceitas pela verificação ortográfica. Fica na raiz do projeto e
+  /// é versionado junto com o texto: nome de personagem é do livro, não da
+  /// instalação.
+  static const String dictionaryFileName = '.prosa_dictionary';
   static const String chaptersDir = 'chapters';
   static const String charactersDir = 'characters';
   static const String miscDir = 'misc';

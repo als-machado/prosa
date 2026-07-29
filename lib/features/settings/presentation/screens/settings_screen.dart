@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/settings_provider.dart';
 import '../../domain/models/app_settings.dart';
+import '../../../projects/presentation/providers/projects_provider.dart';
+import '../../../spellcheck/domain/models/spell_language.dart';
+import '../../../spellcheck/presentation/providers/spellcheck_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -28,6 +31,10 @@ class _SettingsBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Sem isto, um asset de dicionário faltando ou corrompido apareceria
+    // apenas como "a verificação não faz nada".
+    final spellcheckError = ref.watch(spellCheckerProvider).error;
+
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -68,6 +75,37 @@ class _SettingsBody extends ConsumerWidget {
           ),
         ]),
         const SizedBox(height: 24),
+        _Section(title: 'Revisão', children: [
+          SwitchListTile(
+            title: const Text('Verificação ortográfica'),
+            subtitle: const Text('Sublinha palavras fora do dicionário'),
+            secondary: const Icon(Icons.spellcheck),
+            value: settings.spellcheckEnabled,
+            onChanged: (value) => ref
+                .read(settingsProvider.notifier)
+                .save(settings.copyWith(spellcheckEnabled: value)),
+          ),
+          ListTile(
+            enabled: settings.spellcheckEnabled,
+            leading: const Icon(Icons.translate_outlined),
+            title: const Text('Idioma do dicionário'),
+            subtitle: Text(_spellLanguageLabel(ref, settings)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: settings.spellcheckEnabled
+                ? () => _pickSpellLanguage(context, ref)
+                : null,
+          ),
+          if (spellcheckError != null)
+            ListTile(
+              leading: Icon(
+                Icons.error_outline,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              title: const Text('Não foi possível carregar o dicionário'),
+              subtitle: Text('$spellcheckError'),
+            ),
+        ]),
+        const SizedBox(height: 24),
         _Section(title: 'Git', children: [
           ListTile(
             leading: const Icon(Icons.vpn_key_outlined),
@@ -101,6 +139,56 @@ class _SettingsBody extends ConsumerWidget {
         ]),
       ],
     );
+  }
+
+  /// Descreve o idioma em uso e de onde ele veio. Quando o usuário não
+  /// escolheu nada, quem manda é o `language` do `.prosa`.
+  String _spellLanguageLabel(WidgetRef ref, AppSettings settings) {
+    final override = settings.spellcheckLanguage;
+    if (override != null) {
+      final language = SpellLanguage.resolve(override);
+      return language?.label ?? 'Idioma sem dicionário ($override)';
+    }
+
+    final projectLanguage = ref.watch(activeProjectProvider)?.language;
+    final resolved = SpellLanguage.resolve(projectLanguage);
+    if (projectLanguage == null) {
+      return 'Idioma do projeto (nenhum projeto aberto)';
+    }
+    if (resolved == null) {
+      return 'Idioma do projeto ($projectLanguage) — sem dicionário';
+    }
+    return 'Idioma do projeto: ${resolved.label}';
+  }
+
+  static const _projectLanguageSentinel = '_projeto_';
+
+  Future<void> _pickSpellLanguage(BuildContext context, WidgetRef ref) async {
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (_) => SimpleDialog(
+        title: const Text('Idioma do dicionário'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, _projectLanguageSentinel),
+            child: const Text('Seguir o idioma do projeto'),
+          ),
+          ...SpellLanguage.all.map(
+            (language) => SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, language.code),
+              child: Text(language.label),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (picked == null) return;
+    await ref.read(settingsProvider.notifier).save(
+          settings.copyWith(
+            spellcheckLanguage:
+                picked == _projectLanguageSentinel ? null : picked,
+          ),
+        );
   }
 
   Future<void> _pickFont(BuildContext context, WidgetRef ref) async {

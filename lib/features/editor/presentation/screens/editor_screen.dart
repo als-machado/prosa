@@ -21,6 +21,9 @@ import '../../../../features/projects/presentation/providers/projects_provider.d
 import '../../../../features/projects/presentation/providers/project_tree_provider.dart';
 import '../../../../features/settings/presentation/providers/settings_provider.dart';
 import '../../../../features/settings/domain/models/app_settings.dart';
+import '../../../../features/spellcheck/presentation/providers/spellcheck_provider.dart';
+import '../../../../features/spellcheck/presentation/spell_text_span_decorator.dart';
+import '../../../../features/spellcheck/presentation/widgets/spell_context_menu.dart';
 
 CommandShortcutEvent _buildTabInsertCommand(int tabSize) {
   final indent = ' ' * tabSize;
@@ -83,6 +86,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     HardwareKeyboard.instance.removeHandler(_handleGlobalEscape);
     _lifecycleListener.dispose();
     _transactionSub?.cancel();
+    ref.read(spellcheckHighlighterProvider).detach();
     _editorState?.dispose();
     super.dispose();
   }
@@ -104,6 +108,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     _transactionSub?.cancel();
     _findReplaceMenu?.dismiss();
     _findReplaceMenu = null;
+    // Antes do dispose: o destacador ouve o selectionNotifier do EditorState
+    // que está sendo descartado.
+    ref.read(spellcheckHighlighterProvider).detach();
     _editorState?.dispose();
 
     final newState = EditorState(document: markdownToDocument(content));
@@ -111,6 +118,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       ref.read(editorNotifierProvider.notifier).markDirty();
       _scheduleAutosave();
     });
+
+    // O destacador segue o documento aberto: guarda o resultado da
+    // verificação por parágrafo e observa o cursor para não sublinhar a
+    // palavra que está sendo digitada.
+    ref.read(spellcheckHighlighterProvider).attach(newState);
 
     setState(() => _editorState = newState);
     ref.read(editorNotifierProvider.notifier).reset();
@@ -220,6 +232,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
     final baseStyle = _editorTextStyle(settings);
     final colorScheme = Theme.of(context).colorScheme;
+    final highlighter = ref.watch(spellcheckHighlighterProvider);
 
     final prosaBlockConfig = BlockComponentConfiguration(
       padding: (_) => EdgeInsets.zero,
@@ -249,6 +262,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
         header: const SizedBox(height: 32),
         footer: const SizedBox(height: 32),
         blockComponentBuilders: blockComponentBuilders,
+        contextMenuBuilder: buildSpellcheckContextMenuBuilder(
+          highlighter: highlighter,
+        ),
         commandShortcutEvents: [
           ...standardCommandShortcutEvents.where((e) => e.key != 'indent'),
           _buildTabInsertCommand(settings.editorTabSize),
@@ -312,6 +328,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
           padding: EdgeInsets.symmetric(horizontal: settings.editorMarginHorizontal),
           cursorColor: colorScheme.primary,
           selectionColor: colorScheme.primary.withValues(alpha: 0.2),
+          // Sublinhado ondulado nas palavras desconhecidas. Encadeia sobre o
+          // decorador padrão da biblioteca para não perder o tratamento de
+          // links.
+          textSpanDecorator: buildSpellcheckTextSpanDecorator(
+            highlighter: highlighter,
+            color: colorScheme.error,
+          ),
           textStyleConfiguration: TextStyleConfiguration(
             text: baseStyle,
             bold: baseStyle.copyWith(fontWeight: FontWeight.bold),
