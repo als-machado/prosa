@@ -68,6 +68,26 @@ desfazer e o autosave.
 SDK instalado em `/home/andre/flutter`. PATH configurado em `~/.bashrc`.
 Para rodar: `flutter run -d linux`
 
+Build Linux precisa de `clang`, `cmake`, `ninja-build`, `pkg-config`,
+`libgtk-3-dev`, `libsecret-1-dev` e `libjsoncpp-dev` (os dois últimos são do
+`flutter_secure_storage_linux`).
+
+Cuidado com clang muito novo: o `json.hpp` embutido no
+`flutter_secure_storage_linux` usa a forma antiga de operador literal
+(`operator "" _json`), e a partir de alguma versão entre a 18 e a 22 o clang
+passou a avisar (`-Wdeprecated-literal-operator`). Como o template Linux do
+Flutter compila plugin com `-Werror`, o build morre em aviso que não é do nosso
+código. Medido: clang 18 do apt compila; clang 22 do conda-forge não. Se cair
+nisso, ponha no PATH um wrapper de `clang++` que acrescente
+`-Wno-deprecated-literal-operator` — trocar por gcc via `CC`/`CXX` não
+funciona, o Flutter sobrescreve as duas variáveis (`build_linux.dart`).
+
+O `.deb` sai de `scripts/build_deb.sh` (precisa de `dpkg-deb` e do Pillow no
+Python). Se o clang usado não for o do sistema (conda, por exemplo), confira se
+não sobrou caminho dele no RPATH — o pacote tem de depender só de biblioteca de
+sistema:
+`readelf -d build/linux/x64/release/bundle/prosa | grep -i rpath`
+
 ## Pendente (próximos passos)
 - Verificação ortográfica: painel de revisão do capítulo inteiro; pt_PT e
   es_ES; gramática
