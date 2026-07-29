@@ -13,6 +13,20 @@ class AppTheme {
   static const Color _onSurfaceLight  = Color(0xFF1C1712); // marrom-escuro para texto
   static const Color _dividerLight    = Color(0xFFE0D8CC);
 
+  /// Cor do sublinhado ondulado da verificação ortográfica.
+  ///
+  /// Não usa `colorScheme.error` de propósito. No tema escuro o error do
+  /// Material 3 é `#FFB4AB`, um rosa lavado: mesmo tendo o maior contraste de
+  /// luminância contra o fundo (10,9x, medido), ele não salta, porque o que
+  /// falta é saturação — passa por mais uma linha clara no meio de texto
+  /// claro. `#FF5252` tem 5,8x de contraste, bem acima do necessário para
+  /// decoração, e lê na hora como marca de erro.
+  static Color spellcheckUnderline(Brightness brightness) =>
+      brightness == Brightness.dark ? _spellcheckDark : _spellcheckLight;
+
+  static const Color _spellcheckLight = Color(0xFFBA1A1A);
+  static const Color _spellcheckDark  = Color(0xFFFF5252);
+
   static const Color _primaryDark     = Color(0xFFE8906A); // cobre claro para dark mode
   static const Color _onPrimaryDark   = Color(0xFF1A0A02);
   static const Color _bgDark          = Color(0xFF141414); // cinza escuro neutro

@@ -50,7 +50,8 @@ TextSpanDecoratorForAttribute buildSpellcheckTextSpanDecorator({
       decoration: TextDecoration.underline,
       decorationStyle: TextDecorationStyle.wavy,
       decorationColor: color,
-      decorationThickness: 1.2,
+      // Fino demais some no meio do texto, principalmente no tema escuro.
+      decorationThickness: 1.5,
     );
 
     final children = <InlineSpan>[];
