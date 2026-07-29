@@ -16,6 +16,7 @@ import '../widgets/editor_toolbar.dart';
 import '../widgets/commit_dialog.dart';
 import '../widgets/publish_dialog.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../domain/prosa_markdown.dart';
 import '../../../../shared/widgets/sidebar/app_sidebar.dart';
 import '../../../../features/git/presentation/providers/git_provider.dart';
 import '../../../../features/projects/presentation/providers/projects_provider.dart';
@@ -129,7 +130,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     highlighter.detach();
     _editorState?.dispose();
 
-    final newState = EditorState(document: markdownToDocument(content));
+    final newState = EditorState(document: markdownToEditorDocument(content));
     _transactionSub = newState.transactionStream.listen((_) {
       ref.read(editorNotifierProvider.notifier).markDirty();
       _scheduleAutosave();
