@@ -9,6 +9,14 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
+// Tamanhos que painel, alt-tab e barra de título pedem. O ícone do projeto é
+// 1024x1024, e um pixbuf desse tamanho NÃO cabe em _NET_WM_ICON: a propriedade
+// passaria de 4 MB e o X a descarta em silêncio — gtk_window_set_icon_from_file
+// devolve TRUE, gtk_window_get_icon mostra o pixbuf de 1024px na janela, e a
+// janela acaba sem ícone nenhum (o painel desenha um quadrado vazio). Medido
+// com um programa GTK mínimo: 1024px não gera a propriedade, 256px gera.
+static const int kIconSizes[] = {48, 64, 128, 256};
+
 // Resolves the path to the bundled app icon, relative to the running
 // executable (works both for `flutter run` and packaged release builds).
 static gchar* get_icon_path() {
@@ -21,6 +29,34 @@ static gchar* get_icon_path() {
   g_autofree gchar* exe_dir = g_path_get_dirname(exe_path);
   return g_build_filename(exe_dir, "data", "flutter_assets", "assets",
                            "icon", "icon.png", nullptr);
+}
+
+// Carrega o ícone do bundle em vários tamanhos e entrega a lista ao GTK, que
+// escolhe o mais adequado para cada uso.
+static void set_window_icons(GtkWindow* window) {
+  g_autofree gchar* icon_path = get_icon_path();
+  if (icon_path == nullptr) {
+    return;
+  }
+
+  GList* icons = nullptr;
+  for (gsize i = 0; i < G_N_ELEMENTS(kIconSizes); i++) {
+    g_autoptr(GError) error = nullptr;
+    GdkPixbuf* pixbuf = gdk_pixbuf_new_from_file_at_size(
+        icon_path, kIconSizes[i], kIconSizes[i], &error);
+    if (pixbuf == nullptr) {
+      g_warning("Failed to load app icon at %dpx: %s", kIconSizes[i],
+                error->message);
+      continue;
+    }
+    icons = g_list_append(icons, pixbuf);
+  }
+
+  if (icons == nullptr) {
+    return;
+  }
+  gtk_window_set_icon_list(window, icons);
+  g_list_free_full(icons, g_object_unref);
 }
 
 struct _MyApplication {
@@ -70,13 +106,7 @@ static void my_application_activate(GApplication* application) {
 
   gtk_window_set_default_size(window, 1280, 720);
 
-  g_autofree gchar* icon_path = get_icon_path();
-  if (icon_path != nullptr) {
-    g_autoptr(GError) icon_error = nullptr;
-    if (!gtk_window_set_icon_from_file(window, icon_path, &icon_error)) {
-      g_warning("Failed to load app icon: %s", icon_error->message);
-    }
-  }
+  set_window_icons(window);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(

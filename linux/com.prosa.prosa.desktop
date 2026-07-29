@@ -8,4 +8,4 @@ Exec=prosa
 Icon=com.prosa.prosa
 Categories=Office;TextEditor;
 StartupNotify=true
-StartupWMClass=prosa
+StartupWMClass=com.prosa.prosa
