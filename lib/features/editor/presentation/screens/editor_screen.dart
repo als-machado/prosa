@@ -15,6 +15,7 @@ import '../providers/editor_provider.dart';
 import '../widgets/editor_toolbar.dart';
 import '../widgets/commit_dialog.dart';
 import '../widgets/publish_dialog.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/sidebar/app_sidebar.dart';
 import '../../../../features/git/presentation/providers/git_provider.dart';
 import '../../../../features/projects/presentation/providers/projects_provider.dart';
@@ -23,6 +24,7 @@ import '../../../../features/settings/presentation/providers/settings_provider.d
 import '../../../../features/settings/domain/models/app_settings.dart';
 import '../../../../features/spellcheck/presentation/providers/spellcheck_provider.dart';
 import '../../../../features/spellcheck/presentation/spell_text_span_decorator.dart';
+import '../../../../features/spellcheck/presentation/spellcheck_highlighter.dart';
 import '../../../../features/spellcheck/presentation/widgets/spell_context_menu.dart';
 
 CommandShortcutEvent _buildTabInsertCommand(int tabSize) {
@@ -68,9 +70,20 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   // menu existe. Guardamos a referência para poder fechá-lo explicitamente.
   FindReplaceMenu? _findReplaceMenu;
 
+  // Espelhos do estado do Riverpod, mantidos em campo porque `ref` NÃO pode
+  // ser usado no dispose(): quando a janela fecha, o widget já está descartado
+  // quando o dispose roda, e qualquer ref.read de lá estoura com
+  // "Bad state: Cannot use ref after the widget was disposed" — o que
+  // silenciosamente pulava justamente o salvamento de emergência abaixo.
+  late final EditorNotifier _editorNotifier;
+  SpellcheckHighlighter? _highlighter;
+  String? _openFilePath;
+  bool _isDirty = false;
+
   @override
   void initState() {
     super.initState();
+    _editorNotifier = ref.read(editorNotifierProvider.notifier);
     _lifecycleListener = AppLifecycleListener(onExitRequested: _onExitRequested);
     HardwareKeyboard.instance.addHandler(_handleGlobalEscape);
   }
@@ -80,13 +93,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     // Sair da tela do editor (ex.: trocar de projeto) desmonta este widget
     // sem passar por _flushPendingSave nem _onExitRequested — sem isto,
     // alterações não salvas eram descartadas silenciosamente.
-    final path = ref.read(activeFileProvider);
+    _autosaveTimer?.cancel();
+    final path = _openFilePath;
     if (path != null) _flushPendingSave(path);
     _findReplaceMenu?.dismiss();
     HardwareKeyboard.instance.removeHandler(_handleGlobalEscape);
     _lifecycleListener.dispose();
     _transactionSub?.cancel();
-    ref.read(spellcheckHighlighterProvider).detach();
+    _highlighter?.detach();
     _editorState?.dispose();
     super.dispose();
   }
@@ -108,9 +122,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     _transactionSub?.cancel();
     _findReplaceMenu?.dismiss();
     _findReplaceMenu = null;
+    final highlighter = ref.read(spellcheckHighlighterProvider);
+    _highlighter = highlighter;
     // Antes do dispose: o destacador ouve o selectionNotifier do EditorState
     // que está sendo descartado.
-    ref.read(spellcheckHighlighterProvider).detach();
+    highlighter.detach();
     _editorState?.dispose();
 
     final newState = EditorState(document: markdownToDocument(content));
@@ -122,7 +138,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     // O destacador segue o documento aberto: guarda o resultado da
     // verificação por parágrafo e observa o cursor para não sublinhar a
     // palavra que está sendo digitada.
-    ref.read(spellcheckHighlighterProvider).attach(newState);
+    highlighter.attach(newState);
 
     setState(() => _editorState = newState);
     ref.read(editorNotifierProvider.notifier).reset();
@@ -131,10 +147,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   void _scheduleAutosave() {
     _autosaveTimer?.cancel();
     _autosaveTimer = Timer(_autosaveDelay, () {
-      final path = ref.read(activeFileProvider);
-      if (path != null && ref.read(editorNotifierProvider)) {
-        _save(path, notify: false);
-      }
+      final path = _openFilePath;
+      if (path != null && _isDirty) _save(path, notify: false);
     });
   }
 
@@ -143,11 +157,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   void _flushPendingSave(String previousPath) {
     _autosaveTimer?.cancel();
     final state = _editorState;
-    if (state == null || !ref.read(editorNotifierProvider)) return;
+    // Sem `ref` aqui: este método também roda do dispose().
+    if (state == null || !_isDirty) return;
     final markdown = documentToMarkdown(state.document);
-    unawaited(
-      ref.read(editorNotifierProvider.notifier).saveToFile(previousPath, markdown),
-    );
+    unawaited(_editorNotifier.saveToFile(previousPath, markdown));
   }
 
   @override
@@ -156,6 +169,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     final settings = ref.watch(settingsProvider).valueOrNull ?? const AppSettings();
     final activeFile = ref.watch(activeFileProvider);
     final isDirty = ref.watch(editorNotifierProvider);
+
+    // Espelha para o dispose(), que não pode tocar em `ref`.
+    _openFilePath = activeFile;
+    _isDirty = isDirty;
+    _highlighter = ref.watch(spellcheckHighlighterProvider);
 
     ref.listen(activeFileProvider, (prev, next) {
       if (prev != null && prev != next) _flushPendingSave(prev);
@@ -232,7 +250,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
     final baseStyle = _editorTextStyle(settings);
     final colorScheme = Theme.of(context).colorScheme;
-    final highlighter = ref.watch(spellcheckHighlighterProvider);
+    // build() já preencheu o campo antes de chegar aqui.
+    final highlighter = _highlighter!;
 
     final prosaBlockConfig = BlockComponentConfiguration(
       padding: (_) => EdgeInsets.zero,
@@ -333,7 +352,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
           // links.
           textSpanDecorator: buildSpellcheckTextSpanDecorator(
             highlighter: highlighter,
-            color: colorScheme.error,
+            color: AppTheme.spellcheckUnderline(Theme.of(context).brightness),
           ),
           textStyleConfiguration: TextStyleConfiguration(
             text: baseStyle,
@@ -354,7 +373,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     _autosaveTimer?.cancel();
     final markdown = documentToMarkdown(state.document);
     try {
-      await ref.read(editorNotifierProvider.notifier).saveToFile(path, markdown);
+      await _editorNotifier.saveToFile(path, markdown);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e')));
