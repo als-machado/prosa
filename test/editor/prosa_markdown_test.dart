@@ -74,10 +74,17 @@ void main() {
       expect(documento.root.children[1].type, ParagraphBlockKeys.type);
     });
 
-    test('não mexe em arquivo que já tem parágrafos separados', () {
+    test('linha em branco vira parágrafo vazio, não separador', () {
+      // Como o editor salva uma linha por bloco, a linha em branco no arquivo é
+      // um parágrafo vazio que o autor digitou — não a separação de parágrafos
+      // do Markdown. Tratá-la como separador era o que apagava os pulos de
+      // linha entre os resumos de capítulo a cada abertura.
       const comLinhasEmBranco = '# Título\n\nprimeiro parágrafo\n\nsegundo parágrafo\n';
       final documento = markdownToEditorDocument(comLinhasEmBranco);
-      expect(_textos(documento), ['Título', 'primeiro parágrafo', 'segundo parágrafo']);
+      expect(_textos(documento),
+          ['Título', '', 'primeiro parágrafo', '', 'segundo parágrafo']);
+      expect(documentToMarkdown(documento).trimRight(),
+          comLinhasEmBranco.trimRight());
     });
 
     test('salvar e reabrir dá o mesmo documento (round-trip estável)', () {

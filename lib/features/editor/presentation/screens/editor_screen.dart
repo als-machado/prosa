@@ -16,6 +16,7 @@ import '../widgets/editor_toolbar.dart';
 import '../widgets/commit_dialog.dart';
 import '../widgets/publish_dialog.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../domain/code_block.dart';
 import '../../domain/prosa_markdown.dart';
 import '../../../../shared/widgets/sidebar/app_sidebar.dart';
 import '../../../../features/git/presentation/providers/git_provider.dart';
@@ -268,6 +269,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
         configuration: prosaBlockConfig,
         textStyleBuilder: (level) => _headingTextStyle(level, settings.editorFontSize),
       ),
+      // A biblioteca não traz componente para bloco de código; sem isto, o nó
+      // não desenha.
+      CodeBlockKeys.type: codeBlockComponentBuilder(
+        fontSize: settings.editorFontSize,
+        textColor: colorScheme.onSurface,
+      ),
     };
     // AppFlowyEditor só reaplica blockComponentBuilders a editorState.renderer
     // quando editorState.service muda (troca de arquivo) — não a cada rebuild
@@ -285,6 +292,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
         contextMenuBuilder: buildSpellcheckContextMenuBuilder(
           highlighter: highlighter,
         ),
+        characterShortcutEvents: [
+          // Antes dos padrões: dentro do bloco de código, Enter quebra linha em
+          // vez de criar bloco novo, e a formatação automática fica desligada.
+          newLineInCodeBlock,
+          codeBlockFromBackticks,
+          ...withoutFormattingInsideCodeBlock(standardCharacterShortcutEvents),
+        ],
         commandShortcutEvents: [
           ...standardCommandShortcutEvents.where((e) => e.key != 'indent'),
           _buildTabInsertCommand(settings.editorTabSize),
