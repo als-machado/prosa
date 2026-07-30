@@ -4,6 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 final activeFileProvider = StateProvider<String?>((ref) => null);
 final focusModeProvider = StateProvider<bool>((ref) => false);
 
+/// Mostra o Markdown como texto, em vez de renderizado.
+///
+/// Vale para a sessão e não para o arquivo: é um jeito de olhar o texto, e o
+/// autor que abre o modo texto para conferir uma tabela quer continuar nele ao
+/// pular para o capítulo seguinte.
+final rawModeProvider = StateProvider<bool>((ref) => false);
+
 final fileContentProvider = FutureProvider<String>((ref) async {
   final path = ref.watch(activeFileProvider);
   if (path == null) return '';

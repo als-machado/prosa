@@ -908,12 +908,12 @@ packages:
     dependency: "direct main"
     description:
       name: re_editor
-      sha256: "41f2d52060682f12daca57ebefd4ea5b8bbf611ada196c14f38130ae46945e89"
+      sha256: "66671c4774a6b4c5254c9a53ab35a083e7e7da9ae371c519bcf491c70a2a4e56"
       url: "https://pub.dev"
     source: hosted
-    version: "0.4.0"
+    version: "0.10.0"
   re_highlight:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: re_highlight
       sha256: "6c4ac3f76f939fb7ca9df013df98526634e17d8f7460e028bd23a035870024f2"

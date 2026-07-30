@@ -40,6 +40,28 @@ A marcação **nunca** entra no delta do documento — o sublinhado é feito no
 `textSpanDecorator` do `EditorStyle`, senão sujaria o Markdown salvo, o
 desfazer e o autosave.
 
+## Editor: duas visões do mesmo arquivo
+O botão de alternar na barra troca entre o Markdown renderizado (AppFlowy) e o
+texto (`re_editor`, em `widgets/raw_markdown_editor.dart`). O estado é o
+`rawModeProvider`, de sessão.
+
+As duas visões existem ao mesmo tempo: `_loadIntoEditor` enche as duas, e
+alternar leva o conteúdo de uma para a outra (`documentToMarkdown` na ida,
+`markdownToEditorDocument` na volta), **sem salvar** — alternar não é salvar, e
+o que estava por salvar continua por salvar. Quem serializa na hora de gravar é
+`_currentMarkdown()`, que olha em qual visão o texto está.
+
+Dois detalhes que quebram se forem esquecidos:
+- o `CodeLineEditingController` avisa também quando só o cursor anda; sem
+  comparar as linhas antes, mover o cursor marcaria o arquivo como alterado;
+- no modo texto a barra recebe `editorState: null`, o que desliga negrito e
+  título — eles agiriam sobre o documento escondido e o resultado seria
+  descartado na volta.
+
+`re_editor` precisa ser 0.10+: a 0.4.0 não compila com Flutter 3.44 (falta
+`TextInputClient.onFocusReceived`), e o erro só aparece quando alguma coisa
+importa o pacote.
+
 ## Exportação de livros
 Feature em `lib/features/export/`. O botão fica na barra do editor.
 

@@ -4,6 +4,12 @@
 
 ### Adicionado
 
+- **Alternar entre o texto formatado e o Markdown** por um botão na barra do
+  editor. A visão em texto mostra a marcação que o editor esconde — a linha da
+  tabela, o link, a cerca do bloco de código — com numeração de linha (que no
+  formato do Prosa é numeração de parágrafo), cores por tipo de marcação e
+  busca com Ctrl+F. Alternar não salva e não perde o que ainda não foi salvo.
+
 - **Exportação do livro em EPUB**, pelo botão na barra do editor. O diálogo
   tem três abas:
   - **Conteúdo** — todos os capítulos ou só os escolhidos, e quais arquivos de

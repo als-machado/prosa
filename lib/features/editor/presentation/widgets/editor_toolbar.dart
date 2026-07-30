@@ -10,6 +10,8 @@ class EditorToolbar extends StatefulWidget {
   final VoidCallback onPull;
   final VoidCallback onExport;
   final VoidCallback onToggleFocus;
+  final bool rawMode;
+  final VoidCallback onToggleRawMode;
   final EditorState? editorState;
   final double fontSize;
   final VoidCallback? onIncreaseFontSize;
@@ -25,6 +27,8 @@ class EditorToolbar extends StatefulWidget {
     required this.onPull,
     required this.onExport,
     required this.onToggleFocus,
+    required this.rawMode,
+    required this.onToggleRawMode,
     this.editorState,
     this.fontSize = 16.0,
     this.onIncreaseFontSize,
@@ -215,6 +219,15 @@ class _EditorToolbarState extends State<EditorToolbar> {
           _ToolbarButton(icon: Icons.cloud_download_outlined, tooltip: 'Pull', onPressed: widget.onPull),
           const _Separator(),
           _ToolbarButton(icon: Icons.output, tooltip: 'Exportar livro', onPressed: widget.onExport),
+          const _Separator(),
+          _ToolbarButton(
+            icon: widget.rawMode ? Icons.article_outlined : Icons.code,
+            tooltip: widget.rawMode
+                ? 'Voltar ao texto formatado'
+                : 'Ver o Markdown como texto',
+            onPressed: widget.onToggleRawMode,
+            isActive: widget.rawMode,
+          ),
           const Spacer(),
           _FontSizeStepper(
             fontSize: widget.fontSize,

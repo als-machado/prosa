@@ -28,7 +28,9 @@ dependencies:
 
   # Text editing & markdown
   flutter_markdown: ^0.7.7
-  re_editor: ^0.4.0
+  # Modo texto do editor: re_editor desenha, re_highlight colore o Markdown
+  re_editor: ^0.10.0
+  re_highlight: ^0.0.3
 
   # Exportação de livros (EPUB, DOCX e ODT são ZIP; a capa pode precisar de
   # conversão; o PDF é o único que precisa de diagramação de verdade)

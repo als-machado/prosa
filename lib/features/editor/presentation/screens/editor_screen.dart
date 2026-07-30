@@ -11,8 +11,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:re_editor/re_editor.dart';
 import '../providers/editor_provider.dart';
 import '../widgets/editor_toolbar.dart';
+import '../widgets/raw_markdown_editor.dart';
 import '../widgets/commit_dialog.dart';
 import '../widgets/publish_dialog.dart';
 import '../../../../features/export/presentation/providers/export_provider.dart';
@@ -83,11 +85,30 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   SpellcheckHighlighter? _highlighter;
   String? _openFilePath;
   bool _isDirty = false;
+  bool _rawMode = false;
+
+  /// O mesmo arquivo visto como texto. Vive junto com o `_editorState`, e não
+  /// no lugar dele: alternar a visão precisa ser instantâneo e não pode perder
+  /// o que ainda não foi salvo.
+  late final CodeLineEditingController _rawController;
+  late final CodeFindController _rawFindController;
+
+  /// Última versão que o modo texto tinha. O controlador avisa também quando
+  /// só o cursor anda, e sem esta comparação mover o cursor marcaria o arquivo
+  /// como alterado — e dispararia um autosave do nada.
+  CodeLines? _lastRawLines;
+
+  /// Ligado enquanto o texto é trocado por código (troca de arquivo, ida e
+  /// volta entre as visões), para que isso não conte como edição do autor.
+  bool _syncingRaw = false;
 
   @override
   void initState() {
     super.initState();
     _editorNotifier = ref.read(editorNotifierProvider.notifier);
+    _rawController = CodeLineEditingController();
+    _rawFindController = CodeFindController(_rawController);
+    _rawController.addListener(_onRawChanged);
     _lifecycleListener = AppLifecycleListener(onExitRequested: _onExitRequested);
     HardwareKeyboard.instance.addHandler(_handleGlobalEscape);
   }
@@ -106,22 +127,42 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     _transactionSub?.cancel();
     _highlighter?.detach();
     _editorState?.dispose();
+    _rawController.removeListener(_onRawChanged);
+    _rawFindController.dispose();
+    _rawController.dispose();
     super.dispose();
   }
 
   /// Fechar a janela com alterações pendentes salva antes de sair.
   Future<AppExitResponse> _onExitRequested() async {
     final path = ref.read(activeFileProvider);
-    final state = _editorState;
-    if (path != null && state != null && ref.read(editorNotifierProvider)) {
-      await ref
-          .read(editorNotifierProvider.notifier)
-          .saveToFile(path, documentToMarkdown(state.document));
+    final markdown = _currentMarkdown();
+    if (path != null && markdown != null && ref.read(editorNotifierProvider)) {
+      await ref.read(editorNotifierProvider.notifier).saveToFile(path, markdown);
     }
     return AppExitResponse.exit;
   }
 
-  void _loadIntoEditor(String content) {
+  /// O Markdown do que está na tela agora, venha ele do editor renderizado ou
+  /// do modo texto.
+  ///
+  /// Não pode usar `ref`: também roda do dispose(), quando o widget já foi
+  /// descartado.
+  String? _currentMarkdown() {
+    if (_rawMode) return _rawController.text;
+    final state = _editorState;
+    return state == null ? null : documentToMarkdown(state.document);
+  }
+
+  /// Põe o conteúdo nas duas visões.
+  ///
+  /// As duas, e não a que está à mostra: alternar tem de ser instantâneo, e o
+  /// modo texto precisa mostrar o arquivo como ele está no disco quando o
+  /// arquivo acabou de ser aberto.
+  ///
+  /// [markClean] só é falso quando quem chama é a troca de visão: reinterpretar
+  /// o texto não é salvar, e o que estava por salvar continua por salvar.
+  void _loadIntoEditor(String content, {bool markClean = true}) {
     _autosaveTimer?.cancel();
     _transactionSub?.cancel();
     _findReplaceMenu?.dismiss();
@@ -143,9 +184,44 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     // verificação por parágrafo e observa o cursor para não sublinhar a
     // palavra que está sendo digitada.
     highlighter.attach(newState);
+    _setRawText(content);
 
     setState(() => _editorState = newState);
-    ref.read(editorNotifierProvider.notifier).reset();
+    if (markClean) ref.read(editorNotifierProvider.notifier).reset();
+  }
+
+  void _setRawText(String text) {
+    _syncingRaw = true;
+    _rawController.text = text;
+    _lastRawLines = _rawController.codeLines;
+    _syncingRaw = false;
+  }
+
+  void _onRawChanged() {
+    if (_syncingRaw) return;
+    final lines = _rawController.codeLines;
+    final previous = _lastRawLines;
+    // O controlador também avisa quando só o cursor anda.
+    if (previous != null && lines.equals(previous)) return;
+    _lastRawLines = lines;
+    ref.read(editorNotifierProvider.notifier).markDirty();
+    _scheduleAutosave();
+  }
+
+  /// Alterna entre o Markdown renderizado e o texto.
+  ///
+  /// A visão que vai aparecer recebe o que estava na outra, e não o que está
+  /// no disco: quem alterna no meio de um parágrafo não pode perdê-lo.
+  void _toggleRawMode() {
+    if (_rawMode) {
+      _loadIntoEditor(_rawController.text, markClean: false);
+      ref.read(rawModeProvider.notifier).state = false;
+      return;
+    }
+
+    final state = _editorState;
+    if (state != null) _setRawText(documentToMarkdown(state.document));
+    ref.read(rawModeProvider.notifier).state = true;
   }
 
   void _scheduleAutosave() {
@@ -160,10 +236,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   /// anterior antes que o novo conteúdo substitua o editor.
   void _flushPendingSave(String previousPath) {
     _autosaveTimer?.cancel();
-    final state = _editorState;
+    if (!_isDirty) return;
     // Sem `ref` aqui: este método também roda do dispose().
-    if (state == null || !_isDirty) return;
-    final markdown = documentToMarkdown(state.document);
+    final markdown = _currentMarkdown();
+    if (markdown == null) return;
     unawaited(_editorNotifier.saveToFile(previousPath, markdown));
   }
 
@@ -173,10 +249,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     final settings = ref.watch(settingsProvider).valueOrNull ?? const AppSettings();
     final activeFile = ref.watch(activeFileProvider);
     final isDirty = ref.watch(editorNotifierProvider);
+    final rawMode = ref.watch(rawModeProvider);
 
     // Espelha para o dispose(), que não pode tocar em `ref`.
     _openFilePath = activeFile;
     _isDirty = isDirty;
+    _rawMode = rawMode;
     _highlighter = ref.watch(spellcheckHighlighterProvider);
 
     ref.listen(activeFileProvider, (prev, next) {
@@ -202,7 +280,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                     onPull: () => _pull(),
                     onExport: () => _showExportDialog(),
                     onToggleFocus: () => ref.read(focusModeProvider.notifier).state = true,
-                    editorState: _editorState,
+                    rawMode: rawMode,
+                    onToggleRawMode: _toggleRawMode,
+                    // No modo texto não há documento para formatar: negrito e
+                    // título passariam por cima do texto que está à mostra.
+                    editorState: rawMode ? null : _editorState,
                     fontSize: settings.editorFontSize,
                     onIncreaseFontSize: settings.editorFontSize < _maxFontSize ? _increaseFontSize : null,
                     onDecreaseFontSize: settings.editorFontSize > _minFontSize ? _decreaseFontSize : null,
@@ -250,6 +332,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   }
 
   Widget _buildEditor(AppSettings settings, String activeFile) {
+    if (_rawMode) {
+      return RawMarkdownEditor(
+        controller: _rawController,
+        findController: _rawFindController,
+        settings: settings,
+        onSave: () => _save(activeFile),
+      );
+    }
+
     final editorState = _editorState;
     if (editorState == null) return const SizedBox.shrink();
 
@@ -386,10 +477,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   }
 
   Future<void> _save(String path, {bool notify = true}) async {
-    final state = _editorState;
-    if (state == null) return;
+    final markdown = _currentMarkdown();
+    if (markdown == null) return;
     _autosaveTimer?.cancel();
-    final markdown = documentToMarkdown(state.document);
     try {
       await _editorNotifier.saveToFile(path, markdown);
     } catch (e) {
