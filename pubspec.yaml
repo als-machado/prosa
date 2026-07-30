@@ -30,6 +30,10 @@ dependencies:
   flutter_markdown: ^0.7.7
   re_editor: ^0.4.0
 
+  # Exportação de livros (EPUB é um ZIP; a capa pode precisar de conversão)
+  archive: ^4.0.7
+  image: ^4.5.4
+
   # Git / Process
   process_run: ^1.2.1
 
@@ -51,6 +55,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Só nos testes: confere que todo XML gerado no EPUB é bem formado.
+  xml: ^7.0.1
   flutter_lints: ^6.0.0
   riverpod_generator: ^2.6.2
   build_runner: ^2.4.15

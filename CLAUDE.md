@@ -40,6 +40,34 @@ A marcação **nunca** entra no delta do documento — o sublinhado é feito no
 `textSpanDecorator` do `EditorStyle`, senão sujaria o Markdown salvo, o
 desfazer e o autosave.
 
+## Exportação de livros
+Feature em `lib/features/export/`. O botão fica na barra do editor.
+
+O caminho é sempre o mesmo, e é o que faz cada formato novo custar um arquivo:
+
+```
+arquivos .md → markdownToEditorDocument (o MESMO parser do editor)
+             → BookBuilder  → Book (capítulos + apêndices + metadados + capa)
+             → BookExporter → bytes
+```
+
+Reusar `markdownToEditorDocument` não é preguiça: o Prosa salva **uma linha por
+bloco**, e um parser de Markdown comum juntaria parágrafos seguidos num só. Ler
+por outro caminho daria um livro diferente do que está na tela.
+
+Decisões editoriais, todas no `BookBuilder`:
+- título de nível 1 que abre o arquivo vira o título da seção e sai do corpo;
+  sem ele, o título é o nome da pasta e os títulos do corpo descem um nível;
+- capítulo com cenas vira um capítulo só, com quebra de cena entre elas;
+- linha em branco não vira parágrafo vazio (o espaçamento vem do CSS);
+- arquivo de apoio que só tem o título não entra no sumário.
+
+Só o EPUB 3 está implementado (`data/epub_exporter.dart`). DOCX, PDF, ODT,
+HTML e TXT aparecem no diálogo desabilitados. `.prosa_export.json` guarda no
+projeto o que foi escolhido da última vez, inclusive o UUID do livro —
+reexportar tem de gerar o mesmo identificador, senão a biblioteca do leitor
+mostra duas cópias.
+
 ## Estrutura de projeto Prosa (no disco)
 ```
 <projeto>/
@@ -89,6 +117,8 @@ sistema:
 `readelf -d build/linux/x64/release/bundle/prosa | grep -i rpath`
 
 ## Pendente (próximos passos)
+- Exportação: DOCX, PDF, ODT, HTML e TXT (o `Book` e o diálogo já estão
+  prontos; falta um `BookExporter` para cada)
 - Verificação ortográfica: painel de revisão do capítulo inteiro; pt_PT e
   es_ES; gramática
 - Formatação Markdown no editor (negrito/itálico via toolbar)

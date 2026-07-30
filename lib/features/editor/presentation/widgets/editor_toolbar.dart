@@ -8,6 +8,7 @@ class EditorToolbar extends StatefulWidget {
   final VoidCallback onCommit;
   final VoidCallback onPush;
   final VoidCallback onPull;
+  final VoidCallback onExport;
   final VoidCallback onToggleFocus;
   final EditorState? editorState;
   final double fontSize;
@@ -22,6 +23,7 @@ class EditorToolbar extends StatefulWidget {
     required this.onCommit,
     required this.onPush,
     required this.onPull,
+    required this.onExport,
     required this.onToggleFocus,
     this.editorState,
     this.fontSize = 16.0,
@@ -211,6 +213,8 @@ class _EditorToolbarState extends State<EditorToolbar> {
           _ToolbarButton(icon: Icons.commit, tooltip: 'Commit', onPressed: widget.onCommit),
           _ToolbarButton(icon: Icons.cloud_upload_outlined, tooltip: 'Push', onPressed: widget.onPush),
           _ToolbarButton(icon: Icons.cloud_download_outlined, tooltip: 'Pull', onPressed: widget.onPull),
+          const _Separator(),
+          _ToolbarButton(icon: Icons.output, tooltip: 'Exportar livro', onPressed: widget.onExport),
           const Spacer(),
           _FontSizeStepper(
             fontSize: widget.fontSize,

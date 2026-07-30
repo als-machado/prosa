@@ -1,5 +1,31 @@
 # Changelog
 
+## Não lançado
+
+### Adicionado
+
+- **Exportação do livro em EPUB**, pelo botão na barra do editor. O diálogo
+  tem três abas:
+  - **Conteúdo** — todos os capítulos ou só os escolhidos, e quais arquivos de
+    apoio (sinopse, glossário, personagens, notas, locais, pesquisa, linha do
+    tempo, regras do mundo) entram como apêndice no fim do livro.
+  - **Metadados** — título, autor, idioma, editora, ISBN, data, gêneros,
+    descrição e direitos autorais, tudo editável antes de exportar.
+  - **Capa** — qualquer imagem do computador. JPEG, PNG e GIF entram como
+    estão; outros formatos são convertidos para JPEG, porque Kindle e leitor
+    antigo mostrariam um retângulo vazio no lugar da capa.
+  - O que foi escolhido fica em `.prosa_export.json`, versionado com o livro:
+    ISBN e editora acompanham o texto quando ele vai para outro computador.
+  - DOCX, PDF, ODT, HTML e TXT aparecem no seletor de formato marcados como
+    "em breve".
+
+### Corrigido
+
+- Divisor salvo depois de um parágrafo **virava título ao reabrir o arquivo**,
+  e o divisor sumia. Em Markdown, `---` embaixo de uma linha de texto é título
+  "setext" — e é exatamente assim que o editor grava a quebra de cena, que no
+  livro é o único jeito de separar dois trechos dentro do capítulo.
+
 ## 0.2.0 — 2026-07-29
 
 ### Adicionado

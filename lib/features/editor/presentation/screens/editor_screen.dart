@@ -15,6 +15,8 @@ import '../providers/editor_provider.dart';
 import '../widgets/editor_toolbar.dart';
 import '../widgets/commit_dialog.dart';
 import '../widgets/publish_dialog.dart';
+import '../../../../features/export/presentation/providers/export_provider.dart';
+import '../../../../features/export/presentation/widgets/export_dialog.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/code_block.dart';
 import '../../domain/prosa_markdown.dart';
@@ -198,6 +200,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                     onCommit: () => _showCommitDialog(),
                     onPush: () => _push(),
                     onPull: () => _pull(),
+                    onExport: () => _showExportDialog(),
                     onToggleFocus: () => ref.read(focusModeProvider.notifier).state = true,
                     editorState: _editorState,
                     fontSize: settings.editorFontSize,
@@ -523,6 +526,28 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       builder: (_) => PublishDialog(project: project),
     );
     ref.invalidate(hasRemoteProvider);
+  }
+
+  Future<void> _showExportDialog() async {
+    final project = ref.read(activeProjectProvider);
+    if (project == null) return;
+
+    // A exportação lê os arquivos do disco. Sem gravar o que está no editor
+    // antes, o capítulo aberto sairia do jeito que estava no último autosave.
+    final activeFile = ref.read(activeFileProvider);
+    if (activeFile != null && ref.read(editorNotifierProvider)) {
+      await _save(activeFile, notify: false);
+    }
+
+    final tree = await ref.read(projectTreeProvider(project.localPath).future);
+    final config =
+        await ref.read(exportConfigStoreProvider).load(project, tree);
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (_) => ExportDialog(project: project, tree: tree, config: config),
+    );
   }
 }
 

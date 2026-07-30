@@ -9,6 +9,10 @@ class AppConstants {
   /// é versionado junto com o texto: nome de personagem é do livro, não da
   /// instalação.
   static const String dictionaryFileName = '.prosa_dictionary';
+
+  /// Última configuração de exportação (formato, metadados, seleção, capa).
+  /// Fica no projeto porque ISBN e editora são do livro, não da instalação.
+  static const String exportConfigFile = '.prosa_export.json';
   static const String chaptersDir = 'chapters';
   static const String charactersDir = 'characters';
   static const String miscDir = 'misc';
