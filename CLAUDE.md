@@ -62,11 +62,36 @@ Decisões editoriais, todas no `BookBuilder`:
 - linha em branco não vira parágrafo vazio (o espaçamento vem do CSS);
 - arquivo de apoio que só tem o título não entra no sumário.
 
-Só o EPUB 3 está implementado (`data/epub_exporter.dart`). DOCX, PDF, ODT,
-HTML e TXT aparecem no diálogo desabilitados. `.prosa_export.json` guarda no
-projeto o que foi escolhido da última vez, inclusive o UUID do livro —
-reexportar tem de gerar o mesmo identificador, senão a biblioteca do leitor
-mostra duas cópias.
+Seis formatos, um `BookExporter` cada, em `data/`:
+
+| Formato | Como é feito |
+|---|---|
+| EPUB 3 | ZIP com `mimetype` sem compressão, um XHTML por seção, `nav.xhtml` + `toc.ncx` |
+| DOCX   | ZIP OOXML; link e imagem passam por `rId` no `document.xml.rels` |
+| ODT    | ZIP OpenDocument, também com `mimetype` primeiro e sem compressão |
+| PDF    | pacote `pdf`, diagramado aqui (15×22 cm, marcadores por `pw.Outline`) |
+| HTML   | uma página só, estilo embutido e imagem em `data:` |
+| TXT    | texto puro, título sublinhado com `=`/`-` |
+
+`.prosa_export.json` guarda no projeto o que foi escolhido da última vez,
+inclusive o UUID do livro — reexportar tem de gerar o mesmo identificador,
+senão a biblioteca do leitor mostra duas cópias.
+
+O PDF **precisa** da fonte embutida: as fontes internas do formato PDF
+(Times, Helvetica) só enxergam Latin-1, e travessão, aspas curvas e
+reticências ficariam de fora — a pontuação de diálogo em português. Daí a
+Liberation Serif em `assets/fonts` (SIL OFL, ver `LICENSES.md` de lá).
+
+Lista numerada e com marcador saem com o marcador **escrito no texto** em
+DOCX e ODT: numeração nativa exigiria uma definição de estilo por nível e por
+tipo em cada formato, e o resultado na tela é o mesmo.
+
+Para conferir uma exportação de verdade sem abrir o app:
+```
+soffice --headless --convert-to txt:Text livro.docx   # DOCX e ODT
+pdftotext -layout livro.pdf -                          # PDF
+python3 -c "import zipfile; print(zipfile.ZipFile('livro.epub').namelist())"
+```
 
 ## Estrutura de projeto Prosa (no disco)
 ```
@@ -117,8 +142,8 @@ sistema:
 `readelf -d build/linux/x64/release/bundle/prosa | grep -i rpath`
 
 ## Pendente (próximos passos)
-- Exportação: DOCX, PDF, ODT, HTML e TXT (o `Book` e o diálogo já estão
-  prontos; falta um `BookExporter` para cada)
+- Exportação: número de página no sumário do PDF; imagem no meio do texto em
+  DOCX, ODT e PDF (hoje só a capa é embutida)
 - Verificação ortográfica: painel de revisão do capítulo inteiro; pt_PT e
   es_ES; gramática
 - Formatação Markdown no editor (negrito/itálico via toolbar)

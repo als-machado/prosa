@@ -30,9 +30,11 @@ dependencies:
   flutter_markdown: ^0.7.7
   re_editor: ^0.4.0
 
-  # Exportação de livros (EPUB é um ZIP; a capa pode precisar de conversão)
+  # Exportação de livros (EPUB, DOCX e ODT são ZIP; a capa pode precisar de
+  # conversão; o PDF é o único que precisa de diagramação de verdade)
   archive: ^4.0.7
   image: ^4.5.4
+  pdf: ^3.11.3
 
   # Git / Process
   process_run: ^1.2.1
@@ -72,6 +74,12 @@ flutter:
     - assets/dictionaries/pt_BR.ngram.bloom
     - assets/dictionaries/en_US.bloom
     - assets/dictionaries/en_US.ngram.bloom
+    # Miolo do PDF. As fontes internas do formato PDF só enxergam Latin-1 —
+    # travessão e aspas curvas ficariam de fora. Ver assets/fonts/LICENSES.md.
+    - assets/fonts/LiberationSerif-Regular.ttf
+    - assets/fonts/LiberationSerif-Bold.ttf
+    - assets/fonts/LiberationSerif-Italic.ttf
+    - assets/fonts/LiberationSerif-BoldItalic.ttf
 
 flutter_launcher_icons:
   image_path: "assets/icon/icon.png"

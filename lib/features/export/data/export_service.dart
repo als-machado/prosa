@@ -8,9 +8,14 @@ import '../domain/export_exception.dart';
 import '../domain/models/book.dart';
 import '../domain/models/export_format.dart';
 import 'book_exporter.dart';
+import 'docx_exporter.dart';
 import 'epub_exporter.dart';
 import 'export_config_store.dart';
+import 'html_exporter.dart';
 import 'image_loader.dart';
+import 'odt_exporter.dart';
+import 'pdf_exporter.dart';
+import 'txt_exporter.dart';
 
 class ExportResult {
   final Uint8List bytes;
@@ -28,6 +33,11 @@ class ExportService {
 
   static const Map<ExportFormat, BookExporter> _exporters = {
     ExportFormat.epub: EpubExporter(),
+    ExportFormat.docx: DocxExporter(),
+    ExportFormat.pdf: PdfExporter(),
+    ExportFormat.odt: OdtExporter(),
+    ExportFormat.html: HtmlExporter(),
+    ExportFormat.txt: TxtExporter(),
   };
 
   Future<ExportResult> export({

@@ -277,33 +277,31 @@ class _ExportDialogState extends ConsumerState<ExportDialog> {
             ),
           ),
           SizedBox(
-            width: 260,
+            width: 300,
             child: DropdownButtonFormField<ExportFormat>(
               initialValue: _format,
               isExpanded: true,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Formato',
+                helperText: _format.description,
+                helperMaxLines: 2,
                 isDense: true,
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
-              items: ExportFormat.values
-                  .map(
-                    (format) => DropdownMenuItem(
-                      value: format,
-                      enabled: format.available,
-                      child: Text(
-                        format.available
-                            ? format.label
-                            : '${format.label} — em breve',
-                        style: format.available
-                            ? null
-                            : TextStyle(
-                                color: Theme.of(context).disabledColor,
-                              ),
-                      ),
-                    ),
-                  )
-                  .toList(),
+              items: ExportFormat.values.map((format) {
+                final available = ExportService.isAvailable(format);
+                return DropdownMenuItem(
+                  value: format,
+                  enabled: available,
+                  child: Text(
+                    available ? format.label : '${format.label} — em breve',
+                    style: available
+                        ? null
+                        : TextStyle(color: Theme.of(context).disabledColor),
+                  ),
+                );
+              }).toList(),
               onChanged: _busy
                   ? null
                   : (format) {

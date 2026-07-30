@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prosa/features/export/data/export_config_store.dart';
+import 'package:prosa/features/export/domain/models/export_format.dart';
 import 'package:prosa/features/export/presentation/widgets/export_dialog.dart';
 import 'package:prosa/features/projects/presentation/providers/project_tree_provider.dart';
 import 'package:prosa/shared/models/prosa_project.dart';
@@ -28,6 +29,12 @@ Future<void> _write(String relativePath, String content) async {
 }
 
 Future<void> _pump(WidgetTester tester) async {
+  // A tela padrão do teste (800×600) deixa metade da lista de conteúdo fora
+  // do diálogo, e o toque cai no rodapé em vez do item.
+  tester.view.physicalSize = const Size(1200, 1400);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+
   await tester.pumpWidget(
     ProviderScope(
       child: MaterialApp(
@@ -107,13 +114,27 @@ void main() {
     expect(find.widgetWithText(TextField, 'Ana Autora'), findsOneWidget);
   });
 
-  testWidgets('formato ainda não implementado aparece marcado como tal',
-      (tester) async {
+  testWidgets('todos os formatos podem ser escolhidos', (tester) async {
     await _pump(tester);
     await tester.tap(find.text('EPUB'));
     await tester.pumpAndSettle();
 
-    expect(find.text('DOCX — em breve'), findsWidgets);
-    expect(find.text('PDF — em breve'), findsWidgets);
+    for (final format in ExportFormat.values) {
+      expect(find.text(format.label), findsWidgets, reason: format.label);
+      expect(find.text('${format.label} — em breve'), findsNothing);
+    }
+  });
+
+  testWidgets('trocar para TXT esconde a aba de capa', (tester) async {
+    await _pump(tester);
+    await tester.tap(find.text('EPUB'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('TXT').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Capa'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('não tem capa'), findsOneWidget);
   });
 }

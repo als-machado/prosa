@@ -1,15 +1,14 @@
 /// Formatos de saída da exportação.
 ///
-/// Só o EPUB está implementado; os outros aparecem desabilitados no diálogo
-/// para que o caminho até eles já esteja no lugar — cada um é só um
-/// `BookExporter` novo sobre o mesmo `Book`.
+/// Quem sabe se um formato pode ser gerado é o mapa de exportadores do
+/// `ExportService`, não este enum: um formato listado aqui sem exportador
+/// aparece desabilitado no diálogo em vez de falhar na hora de salvar.
 enum ExportFormat {
   epub(
     label: 'EPUB',
     description: 'Livro digital (Kindle, Kobo, Apple Books)',
     extension: 'epub',
     mimeType: 'application/epub+zip',
-    available: true,
     supportsMetadata: true,
     supportsCover: true,
   ),
@@ -19,16 +18,14 @@ enum ExportFormat {
     extension: 'docx',
     mimeType:
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    available: false,
     supportsMetadata: true,
-    supportsCover: false,
+    supportsCover: true,
   ),
   pdf(
     label: 'PDF',
     description: 'Miolo diagramado para leitura em tela ou impressão',
     extension: 'pdf',
     mimeType: 'application/pdf',
-    available: false,
     supportsMetadata: true,
     supportsCover: true,
   ),
@@ -37,17 +34,15 @@ enum ExportFormat {
     description: 'OpenDocument (LibreOffice)',
     extension: 'odt',
     mimeType: 'application/vnd.oasis.opendocument.text',
-    available: false,
     supportsMetadata: true,
-    supportsCover: false,
+    supportsCover: true,
   ),
   html(
     label: 'HTML',
     description: 'Página única, para ler no navegador',
     extension: 'html',
     mimeType: 'text/html',
-    available: false,
-    supportsMetadata: false,
+    supportsMetadata: true,
     supportsCover: true,
   ),
   txt(
@@ -55,8 +50,7 @@ enum ExportFormat {
     description: 'Texto puro, sem formatação',
     extension: 'txt',
     mimeType: 'text/plain',
-    available: false,
-    supportsMetadata: false,
+    supportsMetadata: true,
     supportsCover: false,
   );
 
@@ -65,7 +59,6 @@ enum ExportFormat {
     required this.description,
     required this.extension,
     required this.mimeType,
-    required this.available,
     required this.supportsMetadata,
     required this.supportsCover,
   });
@@ -74,9 +67,6 @@ enum ExportFormat {
   final String description;
   final String extension;
   final String mimeType;
-
-  /// Falso enquanto o exportador do formato não existe.
-  final bool available;
 
   /// O formato guarda título, autor, ISBN e afins dentro do arquivo.
   final bool supportsMetadata;

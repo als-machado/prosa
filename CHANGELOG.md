@@ -16,8 +16,20 @@
     antigo mostrariam um retângulo vazio no lugar da capa.
   - O que foi escolhido fica em `.prosa_export.json`, versionado com o livro:
     ISBN e editora acompanham o texto quando ele vai para outro computador.
-  - DOCX, PDF, ODT, HTML e TXT aparecem no seletor de formato marcados como
-    "em breve".
+- **DOCX, PDF, ODT, HTML e TXT**, além do EPUB. Os seis saem da mesma leitura
+  do projeto, então capítulo, apêndice, quebra de cena e metadados são os
+  mesmos em todos:
+  - **DOCX** com cara de original: Times New Roman 12, entrelinha 1,5,
+    parágrafo justificado com recuo e capítulo em página nova. O sumário é
+    campo do Word — nasce vazio e se preenche ao atualizar (F9).
+  - **PDF** diagramado como miolo de romance: página de 15×22 cm, margem
+    interna maior que a externa, número de página no pé e marcadores de
+    navegação. A fonte vai embutida (Liberation Serif, SIL OFL), senão
+    travessão e aspas curvas não apareceriam.
+  - **ODT** para o LibreOffice, com os mesmos estilos.
+  - **HTML** em página única, com estilo e imagens dentro do arquivo: dá para
+    anexar num e-mail sem quebrar.
+  - **TXT** puro, com título sublinhado e quebra de cena.
 
 ### Corrigido
 

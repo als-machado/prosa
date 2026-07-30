@@ -21,10 +21,15 @@ Future<BookCover> loadExportImage(String path) async {
   final bytes = await file.readAsBytes();
   final known = _detectFormat(bytes);
   if (known != null) {
+    // Só o cabeçalho: o tamanho basta para reservar o espaço na página, e
+    // decodificar a imagem inteira à toa custa dezenas de MB numa capa.
+    final info = img.findDecoderForData(bytes)?.startDecode(bytes);
     return BookCover(
       bytes: bytes,
       mediaType: known.mediaType,
       extension: known.extension,
+      width: info?.width ?? 0,
+      height: info?.height ?? 0,
     );
   }
 
@@ -39,6 +44,8 @@ Future<BookCover> loadExportImage(String path) async {
     bytes: img.encodeJpg(decoded, quality: 90),
     mediaType: 'image/jpeg',
     extension: 'jpg',
+    width: decoded.width,
+    height: decoded.height,
   );
 }
 

@@ -128,11 +128,22 @@ class BookCover {
   final String mediaType;
   final String extension;
 
+  /// DOCX, ODT e PDF precisam do tamanho para reservar o espaço da imagem na
+  /// página; no EPUB quem decide é o leitor.
+  final int width;
+  final int height;
+
   const BookCover({
     required this.bytes,
     required this.mediaType,
     required this.extension,
+    this.width = 0,
+    this.height = 0,
   });
+
+  /// Proporção altura/largura, com 3:2 de retrato como padrão quando o
+  /// tamanho não pôde ser lido.
+  double get aspectRatio => (width > 0 && height > 0) ? height / width : 1.5;
 }
 
 class Book {
@@ -157,4 +168,22 @@ class Book {
   List<BookSection> get sections => [...chapters, ...appendices];
 
   bool get isEmpty => sections.isEmpty;
+}
+
+/// Uma seção da árvore junto com a profundidade em que ela está.
+typedef WalkedSection = ({BookSection section, int depth});
+
+/// Percorre a árvore de seções em profundidade.
+///
+/// Todo exportador precisa disto: a árvore só continua árvore no EPUB (um
+/// arquivo por seção de primeiro nível) e no sumário; nos outros formatos o
+/// livro é uma sequência de títulos com nível.
+Iterable<WalkedSection> walkSections(
+  List<BookSection> sections, [
+  int depth = 0,
+]) sync* {
+  for (final section in sections) {
+    yield (section: section, depth: depth);
+    yield* walkSections(section.subsections, depth + 1);
+  }
 }
