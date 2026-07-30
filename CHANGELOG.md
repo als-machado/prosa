@@ -1,17 +1,11 @@
 # Changelog
 
-## Não lançado
+## 0.3.0 — 2026-07-30
 
 ### Adicionado
 
-- **Alternar entre o texto formatado e o Markdown** por um botão na barra do
-  editor. A visão em texto mostra a marcação que o editor esconde — a linha da
-  tabela, o link, a cerca do bloco de código — com numeração de linha (que no
-  formato do Prosa é numeração de parágrafo), cores por tipo de marcação e
-  busca com Ctrl+F. Alternar não salva e não perde o que ainda não foi salvo.
-
-- **Exportação do livro em EPUB**, pelo botão na barra do editor. O diálogo
-  tem três abas:
+- **Exportação do livro**, pelo botão na barra do editor, em seis formatos. O
+  diálogo tem três abas:
   - **Conteúdo** — todos os capítulos ou só os escolhidos, e quais arquivos de
     apoio (sinopse, glossário, personagens, notas, locais, pesquisa, linha do
     tempo, regras do mundo) entram como apêndice no fim do livro.
@@ -20,14 +14,18 @@
   - **Capa** — qualquer imagem do computador. JPEG, PNG e GIF entram como
     estão; outros formatos são convertidos para JPEG, porque Kindle e leitor
     antigo mostrariam um retângulo vazio no lugar da capa.
-  - O que foi escolhido fica em `.prosa_export.json`, versionado com o livro:
-    ISBN e editora acompanham o texto quando ele vai para outro computador.
-- **DOCX, PDF, ODT, HTML e TXT**, além do EPUB. Os seis saem da mesma leitura
-  do projeto, então capítulo, apêndice, quebra de cena e metadados são os
-  mesmos em todos:
-  - **DOCX** com cara de original: Times New Roman 12, entrelinha 1,5,
-    parágrafo justificado com recuo e capítulo em página nova. O sumário é
-    campo do Word — nasce vazio e se preenche ao atualizar (F9).
+
+  O que foi escolhido fica em `.prosa_export.json`, versionado com o livro:
+  ISBN e editora acompanham o texto quando ele vai para outro computador.
+  Capítulo escrito depois da última exportação entra marcado.
+
+  Os seis formatos saem da mesma leitura do projeto, então capítulo, apêndice,
+  quebra de cena e metadados são os mesmos em todos:
+  - **EPUB 3** para Kindle, Kobo e Apple Books, com sumário navegável e capa.
+  - **DOCX** com cara de original, que é o que editora e revisor pedem: Times
+    New Roman 12, entrelinha 1,5, parágrafo justificado com recuo e capítulo
+    em página nova. O sumário é campo do Word — nasce vazio e se preenche ao
+    atualizar (F9).
   - **PDF** diagramado como miolo de romance: página de 15×22 cm, margem
     interna maior que a externa, número de página no pé e marcadores de
     navegação. A fonte vai embutida (Liberation Serif, SIL OFL), senão
@@ -36,6 +34,11 @@
   - **HTML** em página única, com estilo e imagens dentro do arquivo: dá para
     anexar num e-mail sem quebrar.
   - **TXT** puro, com título sublinhado e quebra de cena.
+- **Alternar entre o texto formatado e o Markdown** por um botão na barra do
+  editor. A visão em texto mostra a marcação que o editor esconde — a linha da
+  tabela, o link, a cerca do bloco de código — com numeração de linha (que no
+  formato do Prosa é numeração de parágrafo), cores por tipo de marcação e
+  busca com Ctrl+F. Alternar não salva e não perde o que ainda não foi salvo.
 
 ### Corrigido
 

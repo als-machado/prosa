@@ -2,7 +2,7 @@ class AppConstants {
   AppConstants._();
 
   static const String appName = 'Prosa';
-  static const String appVersion = '0.1.0';
+  static const String appVersion = '0.3.0';
   static const String prosaFileName = '.prosa';
 
   /// Palavras aceitas pela verificação ortográfica. Fica na raiz do projeto e

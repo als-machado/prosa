@@ -2,7 +2,7 @@ name: prosa
 description: "Editor de texto para escritores, com foco na criação de livros."
 publish_to: 'none'
 
-version: 0.2.0+2
+version: 0.3.0+3
 
 environment:
   sdk: ^3.12.2
