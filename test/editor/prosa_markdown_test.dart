@@ -119,6 +119,27 @@ void main() {
       );
     });
 
+    test('divisor depois de um parágrafo continua divisor', () {
+      // O editor salva o divisor como "---" na linha seguinte ao parágrafo.
+      // Lido como Markdown normal, esse "---" é título "setext": o parágrafo
+      // de cima virava um H2 e o divisor sumia — que no livro é a quebra de
+      // cena, o único jeito de separar dois trechos dentro do capítulo.
+      const comDivisor = '# T\nantes da quebra\n---\ndepois da quebra\n';
+      final documento = markdownToEditorDocument(comDivisor);
+
+      expect(
+        documento.root.children.map((n) => n.type),
+        [
+          HeadingBlockKeys.type,
+          ParagraphBlockKeys.type,
+          DividerBlockKeys.type,
+          ParagraphBlockKeys.type,
+        ],
+      );
+      expect(_textos(documento), ['T', 'antes da quebra', '', 'depois da quebra']);
+      expect(documentToMarkdown(documento).trimRight(), comDivisor.trimRight());
+    });
+
     test('mantém formatação inline ao quebrar', () {
       const comNegrito = '# T\numa linha com **negrito** aqui\noutra linha\n';
       final documento = markdownToEditorDocument(comNegrito);

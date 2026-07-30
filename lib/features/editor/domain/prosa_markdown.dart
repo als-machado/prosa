@@ -69,6 +69,12 @@ Document markdownToEditorDocument(String markdown) {
       continue;
     }
 
+    if (_isThematicBreak(lines[i])) {
+      flushRun();
+      nodes.add(dividerNode());
+      continue;
+    }
+
     run.add(lines[i]);
   }
   flushRun();
@@ -76,6 +82,17 @@ Document markdownToEditorDocument(String markdown) {
   if (nodes.isEmpty) nodes.add(paragraphNode());
   return Document(root: pageNode(children: nodes));
 }
+
+/// Linha que é só um divisor: `---`, `***` ou `___`, com três ou mais marcas.
+///
+/// Precisa ser reconhecida **antes** de a linha entrar no bloco que vai para o
+/// parser da biblioteca. É assim que o `documentToMarkdown` escreve o divisor,
+/// e em Markdown um `---` logo abaixo de uma linha de texto não é divisor: é
+/// título "setext". Sem isto, salvar um divisor depois de um parágrafo e
+/// reabrir o arquivo transformava o parágrafo em título e sumia com o divisor
+/// — que no livro é a quebra de cena.
+bool _isThematicBreak(String line) =>
+    RegExp(r'^ {0,3}(-{3,}|\*{3,}|_{3,})\s*$').hasMatch(line);
 
 /// Tipos de bloco em que a quebra de linha dentro do delta só pode ter vindo do
 /// Markdown juntando linhas seguidas.
